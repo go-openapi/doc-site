@@ -1,0 +1,6 @@
+# Dynamic configuration generated at build time
+
+params:
+  docsite:
+    # Build timestamp
+    buildTime: '{{ BUILD_TIME }}'
