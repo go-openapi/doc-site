@@ -1,0 +1,39 @@
+---
+title: Security Policy
+description: |
+  This document outlines the commitment and practices of the go-openapi maintainers regarding security
+weight: 3
+---
+
+This policy outlines the commitment and practices of the go-openapi maintainers regarding security.
+
+It applies to all repositories in the go-openapi organization.
+
+## Vulnerability checks in place
+
+Our repositories use automated vulnerability scans, at every merged commit and at least once a week.
+
+We use:
+
+* [`GitHub CodeQL`][codeql-url]
+* [`trivy`][trivy-url]
+* [`govulncheck`][govulncheck-url]
+
+Reports are centralized in github security reports and visible only to the maintainers.
+
+## Reporting a vulnerability
+
+If you become aware of a security vulnerability that affects any go-openapi repository,
+**please report it privately to the maintainers**
+rather than opening a publicly visible GitHub issue.
+
+Please follow the instructions provided by github to [Privately report a security vulnerability][github-guidance-url].
+
+{{% notice primary "TL;DR" "meteor" %}}
+> On Github, navigate to the affected project's "Security" tab then click on "Report a vulnerability".
+{{% /notice %}}
+
+[codeql-url]: https://github.com/github/codeql
+[trivy-url]: https://trivy.dev/docs/latest/getting-started
+[govulncheck-url]: https://go.dev/blog/govulncheck
+[github-guidance-url]: https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability#privately-reporting-a-security-vulnerability
