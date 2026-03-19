@@ -25,21 +25,23 @@ across dozens of repositories, we maintain them here as a single source of truth
 Each go-openapi project has its own README and may publish additional project-specific documentation.
 The guidelines on this site apply uniformly unless a project's own documentation states otherwise.
 
-| Project | Description |
-|---------|-------------|
-| [go-openapi/analysis](https://github.com/go-openapi/analysis) | Spec analyzer & flattener |
-| [go-openapi/errors](https://github.com/go-openapi/errors) | Common error types |
-| [go-openapi/inflect](https://github.com/go-openapi/inflect) | English words pluralization (unused now) |
-| [go-openapi/jsonpointer](https://github.com/go-openapi/jsonpointer) | jsonpointer that supports structs |
-| [go-openapi/jsonreference](https://github.com/go-openapi/jsonreference) | json reference for go |
-| [go-openapi/loads](https://github.com/go-openapi/loads) | Spec loading |
-| [go-openapi/runtime](https://github.com/go-openapi/runtime) | Runtime utilities |
-| [go-openapi/spec](https://github.com/go-openapi/spec) | OpenAPI 2.0 (Swagger) spec model |
-| [go-openapi/strfmt](https://github.com/go-openapi/strfmt) | String format validations |
-| [go-openapi/swag](https://github.com/go-openapi/swag) | Misc. common utilities |
-| [go-openapi/testify](https://go-openapi.github.io/testify/) | Testing toolkit (testify/v2 fork) |
-| [go-openapi/validate](https://github.com/go-openapi/validate) | OpenAPI validation |
-| [go-swagger/go-swagger](https://github.com/go-swagger/go-swagger) | Swagger 2.0 implementation |
+| Project | Description | Go docs |
+|---------|-------------|---------|
+| [go-openapi/analysis](https://github.com/go-openapi/analysis) | Spec analyzer, flattener, mixer & differ | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/analysis) |
+| [go-openapi/codescan](https://github.com/go-openapi/codescan) | Spec generation from source | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/codescan) |
+| [go-openapi/errors](https://github.com/go-openapi/errors) | Common error types | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/errors) |
+| [go-openapi/inflect](https://github.com/go-openapi/inflect) | English words pluralization (unused now) | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/inflect) |
+| [go-openapi/jsonpointer](https://github.com/go-openapi/jsonpointer) | jsonpointer that supports structs | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/jsonpointer) |
+| [go-openapi/jsonreference](https://github.com/go-openapi/jsonreference) | json reference for go | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/jsonreference) |
+| [go-openapi/loads](https://github.com/go-openapi/loads) | Spec loading | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/loads) |
+| [go-openapi/runtime](https://github.com/go-openapi/runtime) | Runtime middleware | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/runtime) |
+| [go-openapi/spec](https://github.com/go-openapi/spec) | OpenAPI 2.0 (Swagger) spec model | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/spec) |
+| [go-openapi/strfmt](https://github.com/go-openapi/strfmt) | String format validations | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/strfmt) |
+| [go-openapi/swag](https://github.com/go-openapi/swag) | Misc. common utilities | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/swag) |
+| [go-openapi/testify](https://go-openapi.github.io/testify/) | Testing toolkit (testify/v2 fork) | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/testify/v2) |
+| [go-openapi/validate](https://github.com/go-openapi/validate) | OpenAPI spec & JSONSchema draft 4 validation | [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi/validate) |
+| [go-swagger/examples](https://github.com/go-swagger/examples) | Examples & tutorial using go-swagger| |
+| [go-swagger/go-swagger](https://github.com/go-swagger/go-swagger) | Swagger 2.0 implementation | |
 
 ---
 
@@ -50,4 +52,4 @@ The guidelines on this site apply uniformly unless a project's own documentation
 Join us on Discord for questions, discussions, and announcements.
 
 [discord-badge]: https://img.shields.io/discord/1446918742398341256?logo=discord&label=discord&color=blue
-[discord-url]: https://discord.gg/twZ9BwT3
+[discord-url]: https://discord.gg/FfnFYaC3k5

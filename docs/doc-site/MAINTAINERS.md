@@ -28,6 +28,17 @@ All go-openapi repositories follow the same baseline configuration:
 
 ## Continuous Integration
 
+CI workflows use a shared workflows setup defined in
+[`go-openapi/ci-workflows`][ci-workflows-url] and shared GitHub Actions in
+[`go-openapi/gh-actions`][gh-actions-url].
+
+This approach gives us:
+
+* custom actions for installing vetted versions of tools
+* better control over updates
+* less noisy dependabot updates across the board (a single update per shared
+  workflow instead of one per repository for every single action update)
+
 ### Code Quality checks
 
 * meta-linter: [golangci-lint][golangci-url]
@@ -61,6 +72,9 @@ All go-openapi repositories follow the same baseline configuration:
 Coverage threshold status is informative and not blocking.
 This is because the thresholds are difficult to tune and codecov oftentimes reports false negatives
 or may fail to upload coverage.
+
+Some repositories may have additional integration tests beyond the standard unit
+test suite (e.g. `go-openapi/strfmt`, `go-openapi/analysis`).
 
 All tests across `go-openapi` use our fork of `stretchr/testify`: [`github.com/go-openapi/testify`][testify-url].
 This allows for minimal test dependencies.
@@ -170,13 +184,40 @@ Every go-openapi repository should include:
 * [SECURITY.md](../SECURITY) policy: how to report vulnerabilities privately
 * [LICENSE](../LICENSE) terms
 * NOTICE on supplementary license terms (when applicable: original authors, copied code etc)
+* MAINTAINERS.md: this document, plus possible repo-specific instructions
 
 Reference documentation (released):
 
-* [pkg.go.dev](https://pkg.go.dev/github.com/go-openapi) for all go-openapi packages
+* [pkg.go.dev](https://pkg.go.dev) hosts the Go reference documentation for each package
+  (see the individual package URLs in the [project table](../#for-individual-project-documentation))
+
+## AI coding agent support
+
+Recent improvements across go-openapi repositories add documentation to support
+AI coding agents and improve their productivity. The goal is to guide agents so
+that code and contributions stay aligned with our standards.
+
+Each repository may include the following instruction files:
+
+* `AGENTS.md` -- top-level agent instructions (often a symlink to `.github/copilot-instructions.md`)
+* `.github/copilot-instructions.md` -- instructions for GitHub Copilot
+* `.claude/CLAUDE.md` -- instructions for Claude Code, with detailed rules under `.claude/rules/`
+
+These files typically cover:
+
+* Go code conventions and formatting (license headers, supported Go versions, etc.)
+* Linting standards (`golangci-lint` configuration and `//nolint` policy)
+* Testing requirements (test framework, coverage targets, fuzz tests)
+* Contribution rules (DCO sign-off, commit hygiene, PR quality expectations)
+* GitHub workflow conventions (YAML style, action pinning, secret handling)
+
+See for example the [`jsonpointer`][jsonpointer-agents] repository for a reference setup.
 
 [golangci-url]: https://golangci-lint.run/
 [codefactor-url]: https://www.codefactor.io/overview
 [gocard-url]: https://goreportcard.com/
 [remote-cliff-config]: https://github.com/go-openapi/ci-workflows/blob/master/.cliff.toml
 [testify-url]: https://github.com/go-openapi/testify
+[ci-workflows-url]: https://github.com/go-openapi/ci-workflows
+[gh-actions-url]: https://github.com/go-openapi/gh-actions
+[jsonpointer-agents]: https://github.com/go-openapi/jsonpointer
