@@ -19,6 +19,7 @@ across dozens of repositories, we maintain them here as a single source of truth
 * [Developer Certificate of Origin](contributing/dco) -- signing your commits
 * [Security policy](SECURITY) -- how to report vulnerabilities
 * [License](LICENSE) -- Apache-2.0
+* [Blog](blog) -- announcements and updates
 
 ## For individual project documentation
 
