@@ -60,9 +60,9 @@ jobs:
           echo "    Build time: ${BUILD_TIME}"
 
           # Generate dynamic config
-          cat docsite.yaml.template \
+          cat docs.yaml.template \
             | sed "s|{{ BUILD_TIME }}|${BUILD_TIME}|g" \
-            > docsite.yaml
+            > docs.yaml
       -
         name: Build site with Hugo
         uses: crazy-max/ghaction-hugo@d629f74d3e4a9da53050610da35a59863ab9b26c # v3.3.0
@@ -70,7 +70,7 @@ jobs:
           version: v0.153.3  # <- pin the HUGO version, as they often break things
           extended: true
           args: >
-            --config hugo.yaml,docsite.yaml
+            --config hugo.yaml,docs.yaml
             --buildDrafts
             --cleanDestinationDir
             --minify

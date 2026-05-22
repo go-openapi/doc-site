@@ -1,0 +1,6 @@
+# Dynamic configuration generated at build time
+
+params:
+  docsite:
+    # Build timestamp
+    buildTime: '2026-05-22T20:54:44Z'
