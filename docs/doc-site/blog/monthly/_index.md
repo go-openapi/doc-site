@@ -1,5 +1,5 @@
 ---
-title: Mnnthly News
+title: Monthly News
 description: Monthly activity & announcements on go-openapi & go-swagger
 weight: 90
 ---

@@ -60,6 +60,15 @@ Concise summary (2-3 paragraphs) covering:
 - Whether breaking changes or feature work occurred
 - Overall nature of the effort (coordinated vs. ad-hoc)
 
+### 6. Thanks to Our Contributors
+Close with a short, warm thank-you note acknowledging the **external human contributors** for the period. This list is intentionally small but matters — these are community members, not maintainers or automation.
+
+- **Include** anyone who authored a commit in the window across all go-openapi *and* go-swagger repositories.
+- **Exclude**: the maintainer(s) (e.g. `fredbi` / `Frederic BIDON`), AI agents (Claude, `Copilot`), and bots (`dependabot[bot]`, `bot-go-openapi[bot]`).
+- For **each** contributor, list their GitHub handle and the repo(s) they touched (most community contributions land on go-swagger, the user-facing tool).
+- Do **not** count individual contributions — a handful of fixes is dwarfed by the bot/maintainer commit volume, so counts would misrepresent. Just thank them by name.
+- Keep the tone warm and genuine, not promotional.
+
 ## Style Guidelines
 
 **DO:**
@@ -73,7 +82,7 @@ Concise summary (2-3 paragraphs) covering:
 **DON'T:**
 - Include per-repository commit counts
 - Use marketing language ("demonstrates leadership", "represents maturity")
-- Include contributor names or email addresses (except in specific commit attribution if needed)
+- Include contributor names or email addresses in the body of the themes (the final "Thanks to Our Contributors" section is the one place to credit external contributors — by GitHub handle, never by email)
 - Repeat similar changes for each repository individually
 - Include detailed commit-by-commit logs
 - Add subjective praise or promotional language
@@ -94,8 +103,14 @@ To analyze repositories:
    - Commit messages: `git log --since="1 month ago" --pretty=format:"%s"`
    - Files changed: `git log --since="1 month ago" --name-only --pretty=format: | sort -u`
    - Latest tag: `git describe --tags --abbrev=0`
+   - Authors: `git log <default-branch> --since=<date> --no-merges --pretty=format:'%an%x09%ae'` — count on the *default* branch (`git rev-parse --abbrev-ref origin/HEAD`), not local HEAD
 
 4. Calculate total commits across all repos
+
+5. Resolve contributor GitHub handles for the thank-you section. Git author names are not GitHub usernames. For `…@users.noreply.github.com` emails the handle is embedded (`<id>+<handle>@…`). Otherwise map a sample commit SHA to its GitHub login:
+   ```bash
+   gh api repos/<owner>/<repo>/commits/<sha> --jq '.author.login'
+   ```
 
 5. Categorize commits by type (CI, deps, docs, tests, lint, etc.)
 
