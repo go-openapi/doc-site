@@ -10,11 +10,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -33,22 +35,29 @@ func main() {
 
 	fmt.Println("==> Preparing Hugo documentation site...")
 
+	latestRelease := gitLatestRelease(ctx)
+	requiredGoVersion := goVersionFromMod()
 	buildTime := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	versionMessage := "Documentation test for latest master"
+
+	fmt.Printf("    Latest release: %s\n", latestRelease)
+	fmt.Printf("    Go version: %s\n", requiredGoVersion)
 	fmt.Printf("    Build time: %s\n", buildTime)
 
 	// Generate dynamic config from template.
-	generateDocsiteYAML(buildTime)
-	fmt.Println("==> Generated docsite.yaml")
+	generateConfigYAML(requiredGoVersion, latestRelease, versionMessage, buildTime)
+	fmt.Println("==> Generated docs.yaml")
 
 	// Check if theme exists.
 	if _, err := os.Stat("themes/hugo-relearn"); os.IsNotExist(err) {
 		fatalf("Relearn theme not found at themes/hugo-relearn\n" +
-			"Download from https://github.com/McShelby/hugo-theme-relearn/releases and extract to themes/hugo-relearn")
+			"Run: unzip hugo-theme-relearn-main.zip -d themes/ && mv themes/hugo-theme-relearn-main themes/hugo-relearn")
 	}
 
-	// Check if content docs exist.
+	// Check if generated docs exist.
 	if _, err := os.Stat("../../../docs/doc-site"); os.IsNotExist(err) {
-		fmt.Println("WARNING: Content not found at ../../../docs/doc-site")
+		fmt.Println("WARNING: Generated docs not found at ../../../docs/doc-site")
+		fmt.Println("You may need to run: go generate ./...")
 		fmt.Println()
 		fmt.Println("Creating placeholder content directory...")
 		os.MkdirAll("content", 0o755) //nolint:errcheck,mnd
@@ -60,7 +69,7 @@ func main() {
 
 	// Start Hugo server with both configs.
 	cmd := exec.CommandContext(ctx, "hugo", "server",
-		"--config", "hugo.yaml,docsite.yaml",
+		"--config", "hugo.yaml,docs.yaml",
 		"--buildDrafts",
 		"--disableFastRender",
 		"--navigateToChanged",
@@ -80,18 +89,48 @@ func main() {
 	}
 }
 
-// generateDocsiteYAML reads the template and writes docsite.yaml with substitutions.
-func generateDocsiteYAML(buildTime string) {
-	tmpl, err := os.ReadFile("docsite.yaml.template")
+// gitLatestRelease returns the latest semver tag, or "dev" if none found.
+func gitLatestRelease(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, "git", "tag", "--list", "--sort", "-version:refname", "v*").Output()
+	if err != nil || len(out) == 0 {
+		return "dev"
+	}
+	sc := bufio.NewScanner(strings.NewReader(string(out)))
+	if sc.Scan() {
+		return strings.TrimSpace(sc.Text())
+	}
+	return "dev"
+}
+
+// goVersionFromMod extracts the go version from the root go.mod.
+func goVersionFromMod() string {
+	data, err := os.ReadFile("../../../go.mod")
+	if err != nil {
+		fatalf("reading go.mod: %v", err)
+	}
+	re := regexp.MustCompile(`(?m)^go\s+(\S+)`)
+	m := re.FindSubmatch(data)
+	if m == nil {
+		fatalf("could not find go version in go.mod")
+	}
+	return string(m[1])
+}
+
+// generateConfigYAML reads the template and writes doc.yaml with substitutions.
+func generateConfigYAML(goVersion, latestRelease, versionMessage, buildTime string) {
+	tmpl, err := os.ReadFile("docs.yaml.template")
 	if err != nil {
 		fatalf("reading template: %v", err)
 	}
 
 	out := string(tmpl)
+	out = strings.ReplaceAll(out, "{{ GO_VERSION }}", goVersion)
+	out = strings.ReplaceAll(out, "{{ LATEST_RELEASE }}", latestRelease)
+	out = strings.ReplaceAll(out, "{{ VERSION_MESSAGE }}", versionMessage)
 	out = strings.ReplaceAll(out, "{{ BUILD_TIME }}", buildTime)
 
-	if err := os.WriteFile("docsite.yaml", []byte(out), 0o600); err != nil { //nolint:mnd
-		fatalf("writing docsite.yaml: %v", err)
+	if err := os.WriteFile("docs.yaml", []byte(out), 0o600); err != nil { //nolint:mnd
+		fatalf("writing docs.yaml: %v", err)
 	}
 }
 
