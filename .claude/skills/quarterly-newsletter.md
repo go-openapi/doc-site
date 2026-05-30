@@ -11,6 +11,23 @@ This skill provides a framework for creating factual, developer-focused monthly 
 
 Create a markdown document with the following structure:
 
+### 0. Front matter (Hugo)
+The report is a Hugo page; it opens with YAML front matter with **two distinct summary fields**:
+```yaml
+---
+title: 2026 Q2
+description: Changes over Q2 2026     # plain text — rendered on the Hugo blog cards
+weight: 8                             # decrement by 2 each quarter (lower = more recent = sorts first)
+discord_description: |-
+  <~12-line Discord-flavored summary — see below>
+---
+```
+- **`description`** — a short, **plain-text** one/two-liner. Hugo renders it as the page meta description and the card text in the blog listing, so keep it free of markup (`•`, `**…**` would show literally on the cards).
+- **`discord_description`** — the rich **~dozen-line summary**, posted verbatim by the `announce-quarterly.yml` workflow as the Discord embed body when the report is published. Hugo ignores this custom field (the theme does not render it), so it can use formatting freely:
+  - Discord embeds render **markdown, not HTML** — use markdown (`• ` bullets, `**bold**` for repo/product names, `` `code` ``). HTML tags would show literally.
+  - Lead with one framing sentence, then the headline items; you may close with the period + commit/repo totals and a contributor thank-you line.
+  - Do **not** include the title or the report URL — the workflow adds those automatically.
+
 ### 1. Header
 ```markdown
 # Go-OpenAPI Organization Summary
