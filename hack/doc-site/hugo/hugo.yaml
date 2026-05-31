@@ -112,15 +112,30 @@ params:
 # Menu configuration
 menu:
   shortcuts:
-    - name: "GitHub"
-      identifier: github
-      url: "https://github.com/go-openapi/doc-site"
-      weight: 10
+    - name: "go-swagger"
+      identifier: go-swagger
+      url: "https://goswagger.io"
+      weight: 5 
 
-    - name: "go-openapi toolkit"
+    - name: "go-openapi toolkit on github"
       identifier: go-openapi
       url: "https://github.com/go-openapi"
       weight: 20
+
+    - name: "testify/v2 documentation"
+      identifier: testify
+      url: "https://go-openapi.github.io/testify"
+      weight: 30
+
+    - name: "runtime documentation"
+      identifier: runtime
+      url: "https://go-openapi.github.io/runtime"
+      weight: 40
+
+    - name: "GitHub"
+      identifier: github
+      url: "https://github.com/go-openapi/doc-site"
+      weight: 45
 
 # Privacy settings
 privacy:

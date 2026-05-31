@@ -1,0 +1,22 @@
+{{- /*
+  dashboard/activity_totalrow.html — one subtotal/total row for the Activity tab.
+  Receives a dict {label, class, sums, contributors}. The contributors cell is
+  the DISTINCT count over the scope (passed in), not a sum. "Cut a release" is
+  left blank.
+*/ -}}
+{{- $s := .sums -}}
+<tr class="{{ .class }}">
+  <th>{{ .label }}</th>
+  <td>{{ index $s "openPRs"      | default 0 }}</td>
+  <td>{{ index $s "actionable"   | default 0 }}</td>
+  <td>{{ index $s "deferred"     | default 0 }}</td>
+  <td>{{ index $s "csr"          | default 0 }}</td>
+  <td>{{ index $s "mtd"          | default 0 }}</td>
+  <td>{{ index $s "mtdNoBot"     | default 0 }}</td>
+  <td>{{ index $s "ytd"          | default 0 }}</td>
+  <td>{{ index $s "ytdNoBot"     | default 0 }}</td>
+  <td>{{ index $s "releasesYTD"  | default 0 }}</td>
+  <td>{{ index $s "totalCommits" | default 0 }}</td>
+  <td title="distinct contributors">{{ .contributors | default 0 }}</td>
+  <td></td>
+</tr>

@@ -1,0 +1,23 @@
+{{- /*
+  dashboard/sums.html — sum the numeric Activity columns over a slice of repos.
+  Receives a slice of repo dicts, returns a map of column totals (via newScratch).
+  "actionable" is openIssues minus deferred; "deferred" is the v2/future count.
+  Contributors are NOT summed here — counts aren't additive across repos; the
+  distinct count per scope comes from the generator (data.contributorsDistinct).
+*/ -}}
+{{- $repos := . -}}
+{{- $sc := newScratch -}}
+{{- range $repos -}}
+  {{- $def := .openIssuesDeferred | default 0 -}}
+  {{- $sc.Add "openPRs"      (.openPRs | default 0) -}}
+  {{- $sc.Add "actionable"   (sub (.openIssues | default 0) $def) -}}
+  {{- $sc.Add "deferred"     $def -}}
+  {{- $sc.Add "csr"          (.commitsSinceRelease | default 0) -}}
+  {{- $sc.Add "mtd"          (.commitsMTD | default 0) -}}
+  {{- $sc.Add "mtdNoBot"     (.commitsMTDNoBot | default 0) -}}
+  {{- $sc.Add "ytd"          (.commitsYTD | default 0) -}}
+  {{- $sc.Add "ytdNoBot"     (.commitsYTDNoBot | default 0) -}}
+  {{- $sc.Add "releasesYTD"  (.releasesYTD | default 0) -}}
+  {{- $sc.Add "totalCommits" (.totalCommits | default 0) -}}
+{{- end -}}
+{{- return $sc.Values -}}
