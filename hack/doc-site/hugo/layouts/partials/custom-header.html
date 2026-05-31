@@ -15,4 +15,28 @@
   /* Auto-adapt to 2 columns when a container has exactly 2 cards. */
   grid-template-columns: repeat(2, 1fr);
 }
+
+/* --- Repository dashboard tables --- */
+table.dashboard td:not(:first-child),
+table.dashboard th:not(:first-child) {
+  /* Numeric/badge columns read better centered; the Repo column stays left. */
+  text-align: center;
+}
+table.dashboard tr.dashboard-group > th {
+  /* Per-org section header spanning the row. */
+  text-align: left;
+  background: var(--BOX-CAUTION-color, #4d5360);
+  color: var(--BOX-CAUTION-TEXT-color, #fff);
+  font-weight: 700;
+}
+table.dashboard tr.dashboard-subtotal > th,
+table.dashboard tr.dashboard-subtotal > td {
+  background: rgba(125, 125, 125, 0.12);
+  font-weight: 600;
+}
+table.dashboard tr.dashboard-total > th,
+table.dashboard tr.dashboard-total > td {
+  background: rgba(125, 125, 125, 0.25);
+  font-weight: 700;
+}
 </style>

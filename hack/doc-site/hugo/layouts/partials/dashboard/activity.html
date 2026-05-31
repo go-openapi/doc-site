@@ -1,0 +1,71 @@
+{{- /*
+  dashboard/activity.html — Activity tab table (active repos only).
+  Receives the dashboard data dict (.orgs, .repos). Returns an HTML table.
+
+  Each org section ends with a Subtotal row; the table ends with a Total row
+  (both styled distinctly, "Cut a release" left blank). Open issues are split:
+  "Open issues" is the actionable backlog (total minus deferred), "Open issues
+  (v2 / future)" are those tagged v2 or future/maybe. Commit windows MTD/YTD are
+  shown both raw and excluding bot authors. External links open in a new tab.
+*/ -}}
+{{- $data := . -}}
+{{- $active := where $data.repos "archived" false -}}
+<table class="dashboard dashboard-activity">
+  <thead>
+    <tr>
+      <th>Repo</th>
+      <th>Open PRs</th>
+      <th>Open issues</th>
+      <th>Open issues (v2 / future)</th>
+      <th>Commits since release</th>
+      <th>Commits MTD</th>
+      <th>MTD excl. bots</th>
+      <th>Commits YTD</th>
+      <th>YTD excl. bots</th>
+      <th>Releases YTD</th>
+      <th>Total commits</th>
+      <th>Total contributors</th>
+      <th>Cut a release</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{- range $org := $data.orgs }}
+    {{- $repos := where $active "org" $org }}
+    <tr class="dashboard-group"><th colspan="13">{{ $org }}</th></tr>
+    {{- range $repo := $repos }}
+    {{- $rel := "" }}{{ with $repo.workflows }}{{ $rel = .release }}{{ end }}
+    {{- $deferred := $repo.openIssuesDeferred | default 0 }}
+    {{- $actionable := sub ($repo.openIssues | default 0) $deferred }}
+    <tr>
+      <td><a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.name }}</a></td>
+      <td><a href="{{ $repo.url }}/pulls" target="_blank" rel="noopener">{{ $repo.openPRs }}</a></td>
+      <td><a href="{{ $repo.url }}/issues" target="_blank" rel="noopener">{{ $actionable }}</a></td>
+      <td><a href="{{ $repo.url }}/issues" target="_blank" rel="noopener">{{ $deferred }}</a></td>
+      <td>
+        {{- if $repo.hasRelease -}}
+        {{ $repo.commitsSinceRelease }}{{ if gt $repo.commitsSinceRelease 20 }}❗{{ end }}
+        {{- else -}}N/A{{- end -}}
+      </td>
+      <td>{{ $repo.commitsMTD | default 0 }}</td>
+      <td>{{ $repo.commitsMTDNoBot | default 0 }}</td>
+      <td>{{ $repo.commitsYTD | default 0 }}</td>
+      <td>{{ $repo.commitsYTDNoBot | default 0 }}</td>
+      <td>{{ $repo.releasesYTD | default 0 }}</td>
+      <td>{{ $repo.totalCommits | default 0 }}</td>
+      <td>{{ $repo.contributors | default 0 }}</td>
+      <td>
+        {{- if $rel -}}
+        <a href="{{ $repo.url }}/actions/workflows/{{ $rel }}" target="_blank" rel="noopener" title="Cut a release">🚀</a>
+        {{- else -}}N/A{{- end -}}
+      </td>
+    </tr>
+    {{- end }}
+    {{- $subtotal := partial "dashboard/sums.html" $repos }}
+    {{- $orgDistinct := 0 }}{{ with $data.contributorsDistinct }}{{ $orgDistinct = index . $org | default 0 }}{{ end }}
+    {{- partial "dashboard/activity_totalrow.html" (dict "label" "Subtotal" "class" "dashboard-subtotal" "sums" $subtotal "contributors" $orgDistinct) }}
+  {{- end }}
+  {{- $grand := partial "dashboard/sums.html" $active }}
+  {{- $allDistinct := 0 }}{{ with $data.contributorsDistinct }}{{ $allDistinct = index . "all" | default 0 }}{{ end }}
+  {{- partial "dashboard/activity_totalrow.html" (dict "label" "Total" "class" "dashboard-total" "sums" $grand "contributors" $allDistinct) }}
+  </tbody>
+</table>

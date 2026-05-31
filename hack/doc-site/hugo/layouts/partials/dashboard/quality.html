@@ -1,0 +1,64 @@
+{{- /*
+  dashboard/quality.html — Quality tab table (active repos only).
+  Receives the dashboard data dict (.orgs, .repos). Returns an HTML table.
+
+  CodeFactor and GoReportCard share a spanning "Code quality" header. Coverage,
+  CodeFactor and GoReportCard are badge-only (templated from org/name). CodeQL
+  uses the per-repo workflow filename (N/A when null). "Linter config" links to
+  the repo's .golangci.yml. "Lint status" is a self-made shields badge derived
+  from the `lint` job's conclusion in the latest CI run (collected via the API),
+  since GitHub has no per-job badge. External links open in a new tab.
+  License lives on the Github tab now (administrative metadata).
+*/ -}}
+{{- $data := . -}}
+{{- $active := where $data.repos "archived" false -}}
+{{- $lintColor := dict "success" "brightgreen" "failure" "red" "cancelled" "orange" "skipped" "lightgrey" "unknown" "lightgrey" -}}
+{{- $lintText  := dict "success" "passing" "failure" "failing" "cancelled" "cancelled" "skipped" "skipped" "unknown" "unknown" -}}
+<table class="dashboard dashboard-quality">
+  <thead>
+    <tr>
+      <th rowspan="2">Repo</th>
+      <th rowspan="2">Test Coverage</th>
+      <th colspan="2">Code quality</th>
+      <th rowspan="2">CodeQL</th>
+      <th rowspan="2">Linter config</th>
+      <th rowspan="2">Lint status</th>
+    </tr>
+    <tr>
+      <th>CodeFactor</th>
+      <th>GoReportCard</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{- range $org := $data.orgs }}
+    <tr class="dashboard-group"><th colspan="7">{{ $org }}</th></tr>
+    {{- range $repo := where $active "org" $org }}
+    {{- $slug := printf "%s/%s" $repo.org $repo.name }}
+    {{- $branch := $repo.defaultBranch | default "master" }}
+    {{- $codeql := "" }}{{ $ci := "" }}{{ with $repo.workflows }}{{ $codeql = .codeql }}{{ $ci = .ci }}{{ end }}
+    {{- $lint := $repo.lint | default "unknown" }}
+    {{- $color := index $lintColor $lint | default "lightgrey" }}
+    {{- $text := index $lintText $lint | default $lint }}
+    <tr>
+      <td><a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.name }}</a></td>
+      <td><a href="https://app.codecov.io/gh/{{ $slug }}" target="_blank" rel="noopener"><img src="https://codecov.io/gh/{{ $slug }}/branch/{{ $branch }}/graph/badge.svg" alt="Coverage"></a></td>
+      <td><a href="https://www.codefactor.io/repository/github/{{ $slug }}" target="_blank" rel="noopener"><img src="https://www.codefactor.io/repository/github/{{ $slug }}/badge" alt="CodeFactor"></a></td>
+      <td><a href="https://goreportcard.com/report/github.com/{{ $slug }}" target="_blank" rel="noopener"><img src="https://goreportcard.com/badge/github.com/{{ $slug }}" alt="Go Report Card"></a></td>
+      <td>
+        {{- if $codeql -}}
+        <a href="{{ $repo.url }}/actions/workflows/{{ $codeql }}" target="_blank" rel="noopener"><img src="{{ $repo.url }}/actions/workflows/{{ $codeql }}/badge.svg" alt="CodeQL"></a>
+        {{- else -}}N/A{{- end -}}
+      </td>
+      <td><a href="{{ $repo.url }}/blob/{{ $branch }}/.golangci.yml" target="_blank" rel="noopener" title="golangci-lint configuration">⚙ .golangci.yml</a></td>
+      <td>
+        {{- if $ci -}}
+        <a href="{{ $repo.url }}/actions/workflows/{{ $ci }}" target="_blank" rel="noopener"><img src="https://img.shields.io/badge/lint-{{ $text }}-{{ $color }}" alt="lint {{ $text }}"></a>
+        {{- else -}}
+        <img src="https://img.shields.io/badge/lint-{{ $text }}-{{ $color }}" alt="lint {{ $text }}">
+        {{- end -}}
+      </td>
+    </tr>
+    {{- end }}
+  {{- end }}
+  </tbody>
+</table>

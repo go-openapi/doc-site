@@ -1,0 +1,28 @@
+{{- /*
+  dashboard — renders the repository status dashboard from site.Data.dashboard
+  as a set of Relearn tabs (Status / Activity / Quality for the lean-core v1).
+
+  It builds the tab slice in the same shape the theme's own `tabs`/`tab`
+  shortcodes produce, then hands it to the theme partial `shortcodes/tabs.html`,
+  so the rendered output is indistinguishable from hand-authored tabs — but
+  driven entirely by data. Each tab's `content` is HTML produced by a per-tab
+  partial under partials/dashboard/.
+
+  The collect-dashboard CI job writes data/dashboard.json before the Hugo build.
+  When that file is missing (collection failed, non-fatal), we degrade to a
+  notice rather than breaking the build.
+*/ -}}
+{{- $data := .Site.Data.dashboard -}}
+{{- if or (not $data) (not $data.repos) -}}
+  {{- warnf "dashboard: no data at site.Data.dashboard — rendering 'unavailable' placeholder" -}}
+  <p>The repository dashboard data is currently unavailable. It is refreshed daily; please check back later.</p>
+{{- else -}}
+  {{- $tabs := slice
+      (dict "title" "Status"   "content" (partial "dashboard/status.html"   $data))
+      (dict "title" "Activity" "content" (partial "dashboard/activity.html" $data))
+      (dict "title" "Quality"  "content" (partial "dashboard/quality.html"  $data))
+      (dict "title" "Github"   "content" (partial "dashboard/github.html"   $data))
+  -}}
+  {{- partial "shortcodes/tabs.html" (dict "page" .Page "content" $tabs) -}}
+  <p class="dashboard-updated"><em>Last updated: {{ ($data.generatedAt | time.AsTime).Format "2006-01-02 15:04 MST" }}</em></p>
+{{- end -}}

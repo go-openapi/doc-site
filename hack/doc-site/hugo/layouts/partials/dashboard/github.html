@@ -1,0 +1,84 @@
+{{- /*
+  dashboard/github.html — Github tab: administrative repo metadata.
+  Receives the dashboard data dict (.orgs, .repos). Returns HTML.
+
+  Main table: active repos. A second compact table below lists archived repos
+  with their real archive date (Repository.archivedAt). All columns come from
+  the cheap discovery query (no enrichment). External links open in a new tab.
+  Protected-branch / required-checks status is phase 2 (branch-protection API).
+*/ -}}
+{{- $data := . -}}
+{{- $active := where $data.repos "archived" false -}}
+{{- $archived := where $data.repos "archived" true -}}
+<table class="dashboard dashboard-github">
+  <thead>
+    <tr>
+      <th>Repo</th>
+      <th>Description</th>
+      <th>Tags</th>
+      <th>License</th>
+      <th>Default branch</th>
+      <th>Stars</th>
+      <th>Forks</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{- range $org := $data.orgs }}
+    <tr class="dashboard-group"><th colspan="7">{{ $org }}</th></tr>
+    {{- range $repo := where $active "org" $org }}
+    {{- $slug := printf "%s/%s" $repo.org $repo.name }}
+    <tr>
+      <td><a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.name }}</a></td>
+      <td>{{ $repo.description }}</td>
+      <td>
+        {{- range $i, $t := ($repo.topics | default slice) }}{{ if $i }} {{ end }}<code>{{ $t }}</code>{{ end -}}
+      </td>
+      <td>
+        {{- with $repo.license -}}
+        <a href="{{ $repo.url }}#readme" target="_blank" rel="noopener"><img src="https://img.shields.io/github/license/{{ $slug }}" alt="License: {{ . }}"></a>
+        {{- else -}}N/A{{- end -}}
+      </td>
+      <td>{{ $repo.defaultBranch }}</td>
+      <td>{{ $repo.stars }}</td>
+      <td>{{ $repo.forks }}</td>
+    </tr>
+    {{- end }}
+  {{- end }}
+  </tbody>
+</table>
+
+{{- if $archived }}
+<p><strong>Archived repositories</strong></p>
+<table class="dashboard dashboard-archived">
+  <thead>
+    <tr>
+      <th>Repo</th>
+      <th>Tags</th>
+      <th>Description</th>
+      <th>Archived on</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{- range $org := $data.orgs }}
+    {{- $rows := where $archived "org" $org }}
+    {{- if $rows }}
+    <tr class="dashboard-group"><th colspan="4">{{ $org }}</th></tr>
+    {{- range $repo := $rows }}
+    <tr>
+      <td><a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.name }}</a></td>
+      <td>
+        {{- range $i, $t := ($repo.topics | default slice) }}{{ if $i }} {{ end }}<code>{{ $t }}</code>{{ end -}}
+      </td>
+      <td>{{ $repo.description }}</td>
+      <td>
+        {{- with $repo.archivedAt -}}
+        {{ (. | time.AsTime).Format "Jan 02 2006" }}
+        {{- else -}}N/A{{- end -}}
+      </td>
+    </tr>
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  </tbody>
+</table>
+{{- end }}

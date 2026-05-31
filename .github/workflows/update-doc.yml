@@ -17,6 +17,13 @@ on:
     - hack/doc-site/**
     - .github/workflows/update-doc.yml
 
+  # Daily refresh of the repository dashboard (no repo commits — the data is
+  # baked into the regenerated static site). Manual runs for dry runs / testing.
+  schedule:
+    - cron: '0 6 * * *'
+
+  workflow_dispatch:
+
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -26,7 +33,42 @@ defaults:
     shell: bash
 
 jobs:
+  collect-dashboard:
+    name: Collect dashboard data
+    runs-on: ubuntu-latest
+    # Non-fatal: a transient API hiccup degrades the dashboard to "data
+    # unavailable" rather than failing the whole site deploy (build-doc falls
+    # back to no data file when the artifact is missing).
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: '1'
+          sparse-checkout: |
+            hack/doc-site/dashboard/
+      -
+        name: Collect data
+        env:
+          # Public-data reads work with the default token; set DASHBOARD_READ_TOKEN
+          # (a least-privilege bot PAT) to collect under a dedicated identity.
+          GH_TOKEN: ${{ secrets.DASHBOARD_READ_TOKEN || github.token }}
+        run: |
+          bash hack/doc-site/dashboard/collect-dashboard.sh -o dashboard.json
+      -
+        name: Upload dashboard data
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dashboard-data
+          path: dashboard.json
+          retention-days: 1
+          if-no-files-found: warn
+
   build-doc:
+    needs: collect-dashboard
     runs-on: ubuntu-latest
     steps:
       -
@@ -63,6 +105,15 @@ jobs:
           cat docs.yaml.template \
             | sed "s|{{ BUILD_TIME }}|${BUILD_TIME}|g" \
             > docs.yaml
+      -
+        name: Fetch dashboard data
+        # Non-fatal: if collect-dashboard produced no artifact, the build
+        # proceeds and the dashboard page renders "data unavailable".
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dashboard-data
+          path: hack/doc-site/hugo/data
       -
         name: Build site with Hugo
         uses: crazy-max/ghaction-hugo@d629f74d3e4a9da53050610da35a59863ab9b26c # v3.3.0

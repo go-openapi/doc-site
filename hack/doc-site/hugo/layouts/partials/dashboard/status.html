@@ -1,0 +1,58 @@
+{{- /*
+  dashboard/status.html — Status tab table (active repos only).
+  Receives the dashboard data dict (.orgs, .repos). Returns an HTML table.
+
+  External links open in a new tab (target=_blank), matching the Relearn theme's
+  externalLinkTarget. CI / cut-release workflow filenames come from each repo's
+  `.workflows` map; a null entry renders N/A instead of a broken badge.
+*/ -}}
+{{- $data := . -}}
+{{- $active := where $data.repos "archived" false -}}
+<table class="dashboard dashboard-status">
+  <thead>
+    <tr>
+      <th>Repo</th>
+      <th>Release</th>
+      <th>CI</th>
+      <th>Last updated</th>
+      <th>Commits since release</th>
+      <th>Cut a release</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{- range $org := $data.orgs }}
+    <tr class="dashboard-group"><th colspan="6">{{ $org }}</th></tr>
+    {{- range $repo := where $active "org" $org }}
+    {{- $ci := "" }}{{ $rel := "" }}{{ with $repo.workflows }}{{ $ci = .ci }}{{ $rel = .release }}{{ end }}
+    <tr>
+      <td><a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.name }}</a></td>
+      <td>
+        {{- if $repo.hasRelease -}}
+        <a href="{{ $repo.url }}/releases/tag/{{ $repo.release.tag }}" target="_blank" rel="noopener">{{ $repo.release.tag }}</a>
+        {{- else -}}N/A{{- end -}}
+      </td>
+      <td>
+        {{- if $ci -}}
+        <a href="{{ $repo.url }}/actions/workflows/{{ $ci }}" target="_blank" rel="noopener"><img src="{{ $repo.url }}/actions/workflows/{{ $ci }}/badge.svg" alt="CI status"></a>
+        {{- else -}}N/A{{- end -}}
+      </td>
+      <td>
+        {{- with $repo.lastCommitAt -}}
+        {{ (. | time.AsTime).Format "Jan 02 2006" }}
+        {{- else -}}N/A{{- end -}}
+      </td>
+      <td>
+        {{- if $repo.hasRelease -}}
+        {{ $repo.commitsSinceRelease }}{{ if gt $repo.commitsSinceRelease 20 }}❗{{ end }}
+        {{- else -}}N/A{{- end -}}
+      </td>
+      <td>
+        {{- if $rel -}}
+        <a href="{{ $repo.url }}/actions/workflows/{{ $rel }}" target="_blank" rel="noopener" title="Cut a release">🚀</a>
+        {{- else -}}N/A{{- end -}}
+      </td>
+    </tr>
+    {{- end }}
+  {{- end }}
+  </tbody>
+</table>
