@@ -20,11 +20,13 @@
       <th>Default branch</th>
       <th>Stars</th>
       <th>Forks</th>
+      <th>Security alerts</th>
+      <th>Security reports</th>
     </tr>
   </thead>
   <tbody>
   {{- range $org := $data.orgs }}
-    <tr class="dashboard-group"><th colspan="7">{{ $org }}</th></tr>
+    <tr class="dashboard-group"><th colspan="9">{{ $org }}</th></tr>
     {{- range $repo := where $active "org" $org }}
     {{- $slug := printf "%s/%s" $repo.org $repo.name }}
     <tr>
@@ -41,6 +43,30 @@
       <td>{{ $repo.defaultBranch }}</td>
       <td>{{ $repo.stars }}</td>
       <td>{{ $repo.forks }}</td>
+      {{- /* Security alerts: combined open count across code-scanning / Dependabot /
+             secret-scanning. A leading ⚠️ flags anything that needs a maintainer's
+             eye — open alerts (>0) OR a flavor we could not read (the "anything
+             should be flagged" rule) — so a broken/forbidden scanner never looks
+             like a clean zero. The count follows; detail goes in the title. */ -}}
+      {{- $alerts := int $repo.securityAlerts }}
+      {{- $alertsUnknown := $repo.securityAlertsUnknown | default slice }}
+      <td>
+        {{- if or (gt $alerts 0) $alertsUnknown -}}
+        {{- $bits := slice -}}
+        {{- if gt $alerts 0 }}{{ $bits = $bits | append (printf "%d open security alert%s" $alerts (cond (eq $alerts 1) "" "s")) }}{{ end -}}
+        {{- with $alertsUnknown }}{{ $bits = $bits | append (printf "could not read: %s — check manually" (delimit . ", ")) }}{{ end -}}
+        <a href="{{ $repo.url }}/security" target="_blank" rel="noopener" title="{{ delimit $bits "; " }}">⚠️{{ if gt $alerts 0 }} {{ $alerts }}{{ end }}</a>
+        {{- else -}}0{{- end -}}
+      </td>
+      {{- /* Security reports: existence only of open (triage/draft) advisories. */ -}}
+      {{- $reports := int $repo.securityReports }}
+      <td>
+        {{- if gt $reports 0 -}}
+        <a href="{{ $repo.url }}/security/advisories" target="_blank" rel="noopener" title="{{ $reports }} open security {{ cond (eq $reports 1) "advisory" "advisories" }}">⚠️</a>
+        {{- else if $repo.securityReportsUnknown -}}
+        <a href="{{ $repo.url }}/security/advisories" target="_blank" rel="noopener" title="could not read advisories — check manually">⚠️</a>
+        {{- else -}}&mdash;{{- end -}}
+      </td>
     </tr>
     {{- end }}
   {{- end }}

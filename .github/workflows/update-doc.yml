@@ -40,10 +40,13 @@ jobs:
     # unavailable" rather than failing the whole site deploy (build-doc falls
     # back to no data file when the artifact is missing).
     continue-on-error: true
+    # Only contents:read is needed here: the cross-org security reads do NOT use
+    # this job's GITHUB_TOKEN (it is doc-site-scoped and cannot read other repos'
+    # security data). They use per-org go-openapi-bot App installation tokens
+    # minted below. (security-events:read on this token would be inert, and there
+    # is no valid `security_reports` permission key.)
     permissions:
       contents: read
-      security-events: read
-      security_reports: read
     steps:
       -
         name: Checkout
@@ -53,11 +56,40 @@ jobs:
           sparse-checkout: |
             hack/doc-site/dashboard/
       -
+        # Cross-org security reads need an App installation token, and such tokens
+        # are scoped to a single org — so we mint one per org. The go-openapi-bot
+        # App must be installed on both orgs with read on code scanning / Dependabot
+        # / secret scanning alerts and repository security advisories. Non-fatal: if
+        # minting fails (e.g. a fork PR without secrets), the collect step falls
+        # back to GH_TOKEN and the security columns degrade to ⚠️.
+        name: go-openapi App token
+        id: token-go-openapi
+        continue-on-error: true
+        uses: go-openapi/gh-actions/ci-jobs/bot-credentials@70c5bbea429a7d10a082ac9efb83036da0c5b7d0 # v1.4.14
+        with:
+          enable-github-app: 'true'
+          github-app-id: ${{ secrets.CI_BOT_APP_ID }}
+          github-app-private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          github-app-owner: go-openapi
+      -
+        name: go-swagger App token
+        id: token-go-swagger
+        continue-on-error: true
+        uses: go-openapi/gh-actions/ci-jobs/bot-credentials@70c5bbea429a7d10a082ac9efb83036da0c5b7d0 # v1.4.14
+        with:
+          enable-github-app: 'true'
+          github-app-id: ${{ secrets.CI_BOT_APP_ID }}
+          github-app-private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          github-app-owner: go-swagger
+      -
         name: Collect data
         env:
           # Public-data reads work with the default token; set DASHBOARD_READ_TOKEN
           # (a least-privilege bot PAT) to collect under a dedicated identity.
           GH_TOKEN: ${{ secrets.DASHBOARD_READ_TOKEN || github.token }}
+          # Per-org App tokens for the (non-public) security-alert / advisory reads.
+          SECURITY_TOKEN_GO_OPENAPI: ${{ steps.token-go-openapi.outputs.app-token }}
+          SECURITY_TOKEN_GO_SWAGGER: ${{ steps.token-go-swagger.outputs.app-token }}
         run: |
           bash hack/doc-site/dashboard/collect-dashboard.sh -o dashboard.json
       -

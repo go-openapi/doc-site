@@ -21,3 +21,9 @@ All our repositories at a glance — status, activity and quality, refreshed dai
 > * **Lint status** — conclusion of the `lint` job in the latest CI run (self-rendered badge).
 > * **Cut a release** — link to the repo's bump-release workflow (`N/A` where not applicable).
 > * **Test Coverage / CodeFactor / GoReportCard** — badges rendered by external services.
+> * **Security alerts** — combined count of *open* security alerts (code scanning + Dependabot + secret
+>   scanning). A `⚠️` precedes the count whenever there are open alerts (e.g. `⚠️ 6`), linking to the repo's
+>   Security overview; it also appears on its own when an alert source could not be read (tool failure or
+>   missing access) — **check it manually** (hover for detail). `0` means all sources reported clean.
+> * **Security reports** — `⚠️` if the repo has open (draft / under-triage) security advisories, linking to its
+>   advisories page; blank (`—`) when there are none.

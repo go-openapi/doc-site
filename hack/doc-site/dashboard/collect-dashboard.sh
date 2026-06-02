@@ -78,6 +78,15 @@ if [ -z "${GH_TOKEN:-}" ] && ! gh auth status >/dev/null 2>&1; then
   exit 1
 fi
 
+# The security-alert / advisory reads are not public (cross-repo, see D-h) and a
+# GitHub App installation token is scoped to a SINGLE org — but the dashboard
+# spans two. So the token is resolved PER ORG (see security_token_for): an env
+# var SECURITY_TOKEN_<ORG> (e.g. SECURITY_TOKEN_GO_OPENAPI), then a shared
+# SECURITY_TOKEN, then GH_TOKEN. In CI, mint one App token per org and export
+# each as SECURITY_TOKEN_<ORG>; locally a single SECURITY_TOKEN (a PAT with
+# repo + security_events, member of both orgs) covers both. When the resolved
+# token lacks scope the helpers return "unknown" and the columns degrade to ⚠️.
+
 # Time windows. ISO timestamps compare lexicographically (same format + Z).
 GENERATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 YEAR_START="$(date -u +"%Y-01-01T00:00:00Z")"
@@ -180,6 +189,10 @@ read -r -d '' NODE_TO_REPO <<'JQ' || true
   totalCommits: (.defaultBranchRef.target.history.totalCount // 0),
   contributors: 0,
   lint: "unknown",
+  securityAlerts: 0,
+  securityAlertsUnknown: [],
+  securityReports: 0,
+  securityReportsUnknown: false,
   stars: .stargazerCount,
   forks: .forkCount
 }
@@ -197,9 +210,12 @@ gql_commits_since() {
 # {commitsMTD,commitsMTDNoBot,commitsYTD,commitsYTDNoBot} from the REST commit
 # list since the start of the year. MTD is the subset since the start of month.
 rest_commit_windows() {
-  local owner=$1 name=$2 branch=$3
-  gh api --paginate "/repos/${owner}/${name}/commits?sha=${branch}&since=${YEAR_START}&per_page=100" 2>/dev/null \
-    | jq -s --arg month "${MONTH_START}" '
+  local owner=$1 name=$2 branch=$3 raw
+  # Capture first, then transform: piping `gh | jq || echo` double-emits (jq's
+  # output AND the fallback) when gh exits non-zero under `pipefail` but jq still
+  # prints — yielding two concatenated JSON values that break the merge below.
+  raw="$(gh api --paginate "/repos/${owner}/${name}/commits?sha=${branch}&since=${YEAR_START}&per_page=100" 2>/dev/null || true)"
+  jq -s --arg month "${MONTH_START}" '
         (add // [])
         | map({
             date: .commit.author.date,
@@ -212,16 +228,17 @@ rest_commit_windows() {
             commitsYTDNoBot: (map(select(.bot | not)) | length),
             commitsMTD:      (map(select(.date >= $month)) | length),
             commitsMTDNoBot: (map(select(.date >= $month and (.bot | not))) | length)
-          }' 2>/dev/null || echo '{"commitsYTD":0,"commitsYTDNoBot":0,"commitsMTD":0,"commitsMTDNoBot":0}'
+          }' <<<"${raw}" 2>/dev/null \
+    || echo '{"commitsYTD":0,"commitsYTDNoBot":0,"commitsMTD":0,"commitsMTDNoBot":0}'
 }
 
 # number of releases published since the start of the year.
 gql_releases_ytd() {
-  local owner=$1 name=$2
-  gh api graphql -f query="${RELEASES_QUERY}" -F owner="${owner}" -F name="${name}" 2>/dev/null \
-    | jq --arg ys "${YEAR_START}" \
-        '[.data.repository.releases.nodes[] | select(.publishedAt != null and .publishedAt >= $ys)] | length' \
-        2>/dev/null || echo 0
+  local owner=$1 name=$2 raw
+  raw="$(gh api graphql -f query="${RELEASES_QUERY}" -F owner="${owner}" -F name="${name}" 2>/dev/null || true)"
+  jq --arg ys "${YEAR_START}" \
+      '[.data.repository.releases.nodes[] | select(.publishedAt != null and .publishedAt >= $ys)] | length' \
+      <<<"${raw}" 2>/dev/null || echo 0
 }
 
 # count of open issues bearing a deferred label (v2 / future-maybe), OR semantics.
@@ -236,9 +253,9 @@ gql_deferred_issues() {
 # per-repo count and to union into per-org / overall *distinct* totals — counts
 # are not summable across repos (a person contributes to many).
 rest_contributor_logins() {
-  local owner=$1 name=$2
-  gh api --paginate "/repos/${owner}/${name}/contributors?per_page=100" 2>/dev/null \
-    | jq -s '[ (add // []) | .[] | .login // empty ]' 2>/dev/null || echo '[]'
+  local owner=$1 name=$2 raw
+  raw="$(gh api --paginate "/repos/${owner}/${name}/contributors?per_page=100" 2>/dev/null || true)"
+  jq -s '[ (add // []) | .[] | .login // empty ]' <<<"${raw}" 2>/dev/null || echo '[]'
 }
 
 # conclusion of the "lint" job in the latest completed CI run on the branch.
@@ -252,6 +269,91 @@ rest_lint_status() {
              --jq 'first(.jobs[] | select(.name | ascii_downcase | test("lint")) | .conclusion) // empty' \
              2>/dev/null || true)"
   echo "${concl:-unknown}"
+}
+
+# Classify a *failed* `gh api` security call from its captured stderr as either
+# "off" (the feature is simply not enabled — count as 0) or "unknown" (a genuine
+# read failure: no access / missing scope / 5xx / transport — surfaced as ⚠️ so a
+# maintainer checks). `gh` writes "gh: <message> (HTTP <code>)" to stderr.
+# Decided by HTTP status (validated against live responses, plan §5):
+#   404                              -> off  (no analysis / feature off; public-only dataset, so not a private 404)
+#   403 + a "feature disabled" message -> off
+#   any other 403 / 401 / 5xx / none -> unknown
+# NOTE: the advisories endpoint returns 200 with an EMPTY list when the token
+# lacks advisory-read scope, so a clean 0 there is only trustworthy with a token
+# that can read unpublished advisories (App token / `repo` scope) — see README.
+SEC_OFF_RE='not enabled|disabled|not available|no analysis|archived'
+
+# Resolve the security-read token for an org: SECURITY_TOKEN_<ORG> (org upper-cased
+# with '-'/'.' -> '_'), else the shared SECURITY_TOKEN, else GH_TOKEN. See the
+# preflight note for why this is per-org (App tokens are single-org).
+security_token_for() {
+  local owner=$1 var
+  var="SECURITY_TOKEN_$(printf '%s' "${owner}" | tr 'a-z.-' 'A-Z__')"
+  printf '%s' "${!var:-${SECURITY_TOKEN:-${GH_TOKEN:-}}}"
+}
+
+_sec_classify() {
+  local errfile=$1 code
+  # `|| true`: a no-match grep must not trip `set -o pipefail` and abort the caller.
+  code="$(grep -oE 'HTTP [0-9]+' "${errfile}" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
+  if [ "${code}" = "404" ]; then
+    echo off
+  elif [ "${code}" = "403" ] && grep -qiE "${SEC_OFF_RE}" "${errfile}"; then
+    echo off
+  else
+    echo unknown
+  fi
+}
+
+# Open security alerts across all flavors, using the per-org token -> a JSON object
+# {"count": <int>, "unknown": [<flavor>...]}. Per flavor: a clean read adds its
+# open-alert count; an "off" feature contributes 0; an "unknown" failure marks
+# the flavor (⚠️ in the template). Counts are small, but paginate anyway.
+security_alerts() {
+  local owner=$1 name=$2
+  local total=0 unknown='[]' tok
+  local flavor path out err count cls
+  tok="$(security_token_for "${owner}")"
+  for flavor in code-scanning dependabot secret-scanning; do
+    path="/repos/${owner}/${name}/${flavor}/alerts?state=open&per_page=100"
+    err="$(mktemp)"
+    if out="$(GH_TOKEN="${tok}" gh api --paginate "${path}" 2>"${err}")"; then
+      cls=ok
+    else
+      cls="$(_sec_classify "${err}")"
+    fi
+    rm -f "${err}"
+    case "${cls}" in
+      ok)      count="$(jq -s '(add // []) | length' <<<"${out}" 2>/dev/null || echo 0)"; total=$(( total + count )) ;;
+      off)     : ;;
+      unknown) unknown="$(jq -c --arg f "${flavor}" '. + [$f]' <<<"${unknown}")" ;;
+    esac
+  done
+  jq -c -n --argjson c "${total}" --argjson u "${unknown}" '{count: $c, unknown: $u}'
+}
+
+# Open repository security advisories (privately-reported / draft vulns), using
+# the per-org token -> {"count": <int>, "unknown": <bool>}. "Open" = state triage or
+# draft (not published, not closed). A read failure -> unknown:true (flagged).
+security_reports() {
+  local owner=$1 name=$2 out err count cls tok
+  tok="$(security_token_for "${owner}")"
+  err="$(mktemp)"
+  if out="$(GH_TOKEN="${tok}" gh api --paginate \
+             "/repos/${owner}/${name}/security-advisories?per_page=100" 2>"${err}")"; then
+    cls=ok
+  else
+    cls="$(_sec_classify "${err}")"
+  fi
+  rm -f "${err}"
+  case "${cls}" in
+    ok)  count="$(jq -s '[ (add // [])[] | select(.state == "triage" or .state == "draft") ] | length' \
+                    <<<"${out}" 2>/dev/null || echo 0)"
+         jq -c -n --argjson c "${count}" '{count: $c, unknown: false}' ;;
+    off) jq -c -n '{count: 0, unknown: false}' ;;
+    *)   jq -c -n '{count: 0, unknown: true}' ;;
+  esac
 }
 
 # --- phase 1: discover + collect metadata ------------------------------------
@@ -315,6 +417,11 @@ for ((i = 0; i < count; i++)); do
   releases_ytd="$(gql_releases_ytd "${org}" "${name}")"
   deferred="$(gql_deferred_issues "${org}" "${name}")"
   lint="$(rest_lint_status "${org}" "${name}" "${ci_file}" "${branch}")"
+  secalerts="$(security_alerts "${org}" "${name}")"
+  secreports="$(security_reports "${org}" "${name}")"
+  # Non-fatal guard: never let an empty helper result abort the merge below.
+  [ -n "${secalerts}" ]  || secalerts='{"count":0,"unknown":[]}'
+  [ -n "${secreports}" ] || secreports='{"count":0,"unknown":false}'
 
   # Contributors: per-repo count from the login list; accumulate logins so the
   # subtotal/total rows can report DISTINCT contributors over the scope.
@@ -330,12 +437,18 @@ for ((i = 0; i < count; i++)); do
     --argjson deferred "${deferred:-0}" \
     --argjson contributors "${contributors:-0}" \
     --arg lint "${lint:-unknown}" \
+    --argjson secalerts "${secalerts}" \
+    --argjson secreports "${secreports}" \
     '. + $windows
        + { commitsSinceRelease: $csr,
            releasesYTD: $releasesYTD,
            openIssuesDeferred: $deferred,
            contributors: $contributors,
-           lint: $lint }' \
+           lint: $lint,
+           securityAlerts: $secalerts.count,
+           securityAlertsUnknown: $secalerts.unknown,
+           securityReports: $secreports.count,
+           securityReportsUnknown: $secreports.unknown }' \
     <<<"${repo}" >> "${tmp_enriched}"
 done
 
