@@ -42,6 +42,18 @@ year); releases YTD; deferred-issue count (GraphQL `search` for `v2` /
 `lint` job's conclusion in the latest CI run (Actions runs+jobs API); and the
 **security metrics** below.
 
+**Fork-aware totals.** For a repo that is a fork of an upstream parent
+(`testify`, our testify/v2 fork of `stretchr/testify`), GitHub reports the whole
+fork network for **Total commits** and **Total contributors** (testify carries
+stretchr's lineage — ~1483 commits / 258 contributors). The generator instead
+counts only the fork's **own** work since the fork point via the cross-fork
+compare API (`parent_default...fork_default` → commits unique to the fork — ~227
+/ 7 for testify), overriding `totalCommits` and the contributor list (so the
+per-org / overall *distinct* totals are no longer inflated either). Time-windowed
+metrics (MTD/YTD, commits-since-release) need no adjustment — the fork's history
+holds only shared ancestry (dated before the fork point) plus our own commits,
+so the `since=` filters already exclude upstream.
+
 **Security metrics** (Github tab — needs `SECURITY_TOKEN`, see below):
 - `securityAlerts` — combined count of *open* alerts across code scanning,
   Dependabot and secret scanning. `securityAlertsUnknown` lists any flavor whose

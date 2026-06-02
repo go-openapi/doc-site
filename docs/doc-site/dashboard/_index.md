@@ -17,7 +17,9 @@ All our repositories at a glance — status, activity and quality, refreshed dai
 > * **Open issues** — actionable backlog; **Open issues (v2 / future)** — issues tagged `v2` or `future/maybe`.
 > * **Commits MTD / YTD** — commits this month / this year; the *excl. bots* columns omit bot authors.
 > * **Total contributors** — per repo, all-time contributor count; on the Subtotal/Total rows, the number of
->   *distinct* contributors across the scope (not a sum — people contribute to several repos).
+>   *distinct* contributors across the scope (not a sum — people contribute to several repos). For forks
+>   (e.g. `testify`), **Total commits** and **Total contributors** count only our own work since the fork
+>   point, not the upstream lineage.
 > * **Lint status** — conclusion of the `lint` job in the latest CI run (self-rendered badge).
 > * **Cut a release** — link to the repo's bump-release workflow (`N/A` where not applicable).
 > * **Test Coverage / CodeFactor / GoReportCard** — badges rendered by external services.

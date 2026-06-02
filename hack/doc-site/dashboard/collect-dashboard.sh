@@ -106,6 +106,7 @@ query($org: String!, $endCursor: String) {
         isArchived
         archivedAt
         isFork
+        parent { nameWithOwner defaultBranchRef { name } }
         stargazerCount
         forkCount
         licenseInfo { spdxId }
@@ -163,6 +164,13 @@ read -r -d '' NODE_TO_REPO <<'JQ' || true
   archived: .isArchived,
   archivedAt: (.archivedAt // null),
   isFork: .isFork,
+  forkParent: (
+    if .isFork and .parent then {
+      owner:  (.parent.nameWithOwner | split("/")[0]),
+      name:   (.parent.nameWithOwner | split("/")[1]),
+      branch: (.parent.defaultBranchRef.name // "")
+    } else null end
+  ),
   defaultBranch: (.defaultBranchRef.name // ""),
   topics: [.repositoryTopics.nodes[].topic.name],
   license: (.licenseInfo.spdxId // ""),
@@ -256,6 +264,24 @@ rest_contributor_logins() {
   local owner=$1 name=$2 raw
   raw="$(gh api --paginate "/repos/${owner}/${name}/contributors?per_page=100" 2>/dev/null || true)"
   jq -s '[ (add // []) | .[] | .login // empty ]' <<<"${raw}" 2>/dev/null || echo '[]'
+}
+
+# Fork-aware own work: for a fork, GitHub reports the WHOLE fork network for
+# total commits and contributors (e.g. go-openapi/testify carries stretchr/testify's
+# lineage: 1483 commits / 258 contributors vs ~227 / 7 of our own). The cross-fork
+# compare API (parent_default...fork_default) yields exactly the commits unique to
+# the fork — our own work since the fork point. Returns
+# {"totalCommits": <ahead count>, "logins": [<distinct author logins>]}.
+# (Time-windowed metrics — MTD/YTD, commits-since-release — need no adjustment:
+# the fork's history holds only shared ancestry, all dated before the fork point,
+# plus our own commits, so the `since=` filters already exclude upstream.)
+# Non-fatal; the compare commit list caps at 250, but ahead_by (the count) is exact.
+fork_own_commits() {
+  local powner=$1 pname=$2 pbranch=$3 fowner=$4 fbranch=$5 raw ahead logins
+  raw="$(gh api --paginate "/repos/${powner}/${pname}/compare/${pbranch}...${fowner}:${fbranch}?per_page=100" 2>/dev/null || true)"
+  ahead="$(jq -s '.[0].ahead_by // 0' <<<"${raw}" 2>/dev/null || echo 0)"
+  logins="$(jq -s '[ (map(.commits) | add // []) | .[] | .author.login // empty ] | unique' <<<"${raw}" 2>/dev/null || echo '[]')"
+  jq -c -n --argjson c "${ahead:-0}" --argjson l "${logins:-[]}" '{totalCommits: $c, logins: $l}'
 }
 
 # conclusion of the "lint" job in the latest completed CI run on the branch.
@@ -424,8 +450,22 @@ for ((i = 0; i < count; i++)); do
   [ -n "${secreports}" ] || secreports='{"count":0,"unknown":false}'
 
   # Contributors: per-repo count from the login list; accumulate logins so the
-  # subtotal/total rows can report DISTINCT contributors over the scope.
-  logins="$(rest_contributor_logins "${org}" "${name}")"
+  # subtotal/total rows can report DISTINCT contributors over the scope. Forks
+  # with an upstream parent count only their OWN commits/contributors since the
+  # fork point (else GitHub's whole-network totals — e.g. testify's stretchr
+  # lineage — inflate both the per-repo figure and the distinct unions); this
+  # also overrides the discovery totalCommits. Non-forks use the plain endpoint.
+  total_commits_own="null"
+  if [ "$(jq -r '.isFork and (.forkParent != null)' <<<"${repo}")" = "true" ]; then
+    p_owner="$(jq -r '.forkParent.owner'  <<<"${repo}")"
+    p_name="$(jq -r '.forkParent.name'    <<<"${repo}")"
+    p_branch="$(jq -r '.forkParent.branch' <<<"${repo}")"
+    own="$(fork_own_commits "${p_owner}" "${p_name}" "${p_branch}" "${org}" "${branch}")"
+    logins="$(jq -c '.logins' <<<"${own}")"
+    total_commits_own="$(jq '.totalCommits' <<<"${own}")"
+  else
+    logins="$(rest_contributor_logins "${org}" "${name}")"
+  fi
   contributors="$(jq 'length' <<<"${logins}")"
   jq -r '.[]' <<<"${logins}" | grep . >> "${logins_dir}/${org}" || true
   jq -r '.[]' <<<"${logins}" | grep . >> "${logins_dir}/_all"  || true
@@ -436,6 +476,7 @@ for ((i = 0; i < count; i++)); do
     --argjson releasesYTD "${releases_ytd:-0}" \
     --argjson deferred "${deferred:-0}" \
     --argjson contributors "${contributors:-0}" \
+    --argjson totalCommitsOwn "${total_commits_own:-null}" \
     --arg lint "${lint:-unknown}" \
     --argjson secalerts "${secalerts}" \
     --argjson secreports "${secreports}" \
@@ -448,7 +489,8 @@ for ((i = 0; i < count; i++)); do
            securityAlerts: $secalerts.count,
            securityAlertsUnknown: $secalerts.unknown,
            securityReports: $secreports.count,
-           securityReportsUnknown: $secreports.unknown }' \
+           securityReportsUnknown: $secreports.unknown }
+       + (if $totalCommitsOwn != null then { totalCommits: $totalCommitsOwn } else {} end)' \
     <<<"${repo}" >> "${tmp_enriched}"
 done
 
