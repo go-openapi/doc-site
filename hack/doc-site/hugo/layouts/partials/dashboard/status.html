@@ -43,7 +43,7 @@
       </td>
       <td>
         {{- if $repo.hasRelease -}}
-        {{ $repo.commitsSinceRelease }}{{ if gt $repo.commitsSinceRelease 20 }}❗{{ end }}
+        <a href="{{ $repo.url }}/compare/{{ $repo.release.tag }}...HEAD" target="_blank" rel="noopener">{{ $repo.commitsSinceRelease }}</a>{{ if gt $repo.commitsSinceRelease 20 }}❗{{ end }}
         {{- else -}}N/A{{- end -}}
       </td>
       <td>
