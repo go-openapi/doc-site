@@ -122,17 +122,22 @@ menu:
       url: "https://github.com/go-openapi"
       weight: 20
 
-    - name: "testify/v2 documentation"
-      identifier: testify
-      url: "https://go-openapi.github.io/testify"
+    - name: "codescan documentation"
+      identifier: codescan
+      url: "https://go-openapi.github.io/codescan"
       weight: 30
 
     - name: "runtime documentation"
       identifier: runtime
       url: "https://go-openapi.github.io/runtime"
+      weight: 35
+
+    - name: "testify/v2 documentation"
+      identifier: testify
+      url: "https://go-openapi.github.io/testify"
       weight: 40
 
-    - name: "GitHub"
+    - name: "general documentation"
       identifier: github
       url: "https://github.com/go-openapi/doc-site"
       weight: 45
