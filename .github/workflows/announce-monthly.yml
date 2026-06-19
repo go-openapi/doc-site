@@ -1,0 +1,110 @@
+name: "Announce monthly report on Discord"
+
+# Posts an announcement to the #monthly-news Discord channel when a new
+# monthly report is published. It chains off the "Update documentation"
+# workflow so we only announce once the doc site has been built and deployed
+# to GitHub Pages (i.e. the report URL is actually live).
+#
+# Monthly only — other report kinds (quarterly, ...) are announced to their own
+# channels by their own workflows. The webhook is the DISCORD_MONTHLY_WEBHOOK_URL
+# repo secret (the #monthly-news channel webhook).
+
+permissions:
+  contents: read
+
+on:
+  workflow_run:
+    workflows:
+      - "Update documentation"
+    types:
+      - completed
+    branches:
+      - master
+
+concurrency:
+  group: discord-monthly-announce
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  announce:
+    name: Announce new monthly report
+    runs-on: ubuntu-latest
+    # Only when the doc build/deploy succeeded, and only for pushes to master
+    # (not PR builds of the upstream workflow). Note: workflow_run does not
+    # support a `paths` filter, so the monthly-file check is done in-job below.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    steps:
+      -
+        name: Checkout the deployed commit
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+      -
+        name: Detect a newly added monthly report
+        id: detect
+        run: |
+          # Announce only when a NEW monthly report file is added in this
+          # commit (--diff-filter=A); edits/typo-fixes to existing reports do
+          # not re-trigger an announcement.
+          file=$(git diff --name-only --diff-filter=A HEAD^ HEAD \
+                   | grep -E '^docs/doc-site/blog/monthly/[^/]+\.md$' \
+                   | head -1 || true)
+          if [ -n "${file}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "file=${file}" >> "$GITHUB_OUTPUT"
+            echo "New monthly report added: ${file}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No new monthly report in this commit; skipping announcement."
+          fi
+      -
+        name: Post announcement to Discord
+        if: ${{ steps.detect.outputs.changed == 'true' }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MONTHLY_WEBHOOK_URL }}
+          REPORT_FILE: ${{ steps.detect.outputs.file }}
+        run: |
+          if [ -z "${DISCORD_WEBHOOK_URL}" ]; then
+            echo "::error title=discord::DISCORD_MONTHLY_WEBHOOK_URL secret is not set"; exit 1
+          fi
+
+          # The embed body IS the report's front-matter `discord_description` —
+          # a short, Discord-flavored (markdown) summary authored with the
+          # report (see the monthly-newsletter skill). It is a dedicated field
+          # (not Hugo's `description`, which is plain-text card text). Title and
+          # URL are derived from the file, so they aren't repeated in the body.
+          title=$(yq --front-matter=extract '.title' "${REPORT_FILE}")
+          desc=$(yq --front-matter=extract '.discord_description' "${REPORT_FILE}")
+          if [ -z "${desc}" ] || [ "${desc}" = "null" ]; then
+            echo "::error title=discord::${REPORT_FILE} has no front-matter discord_description to announce"; exit 1
+          fi
+
+          slug=$(basename "${REPORT_FILE}" .md | tr '[:upper:]' '[:lower:]')
+          url="https://go-openapi.github.io/doc-site/blog/monthly/${slug}/index.html"
+
+          jq -n \
+            --arg title "go-openapi & go-swagger — ${title} Monthly Report" \
+            --arg url "${url}" \
+            --arg desc "${desc}" \
+            '{
+               username: "go-openapi news",
+               content: "🗓️ **New monthly report is out!**",
+               allowed_mentions: { parse: [] },
+               embeds: [ { title: $title, url: $url, color: 3447003, description: $desc } ]
+             }' > payload.json
+
+          code=$(curl -sS -o resp.txt -w '%{http_code}' \
+            -H "Content-Type: application/json" \
+            -X POST --data @payload.json \
+            "${DISCORD_WEBHOOK_URL}?wait=true")
+          echo "Discord HTTP ${code}"
+          cat resp.txt || true; echo
+          case "${code}" in
+            2*) echo "::notice title=discord::Posted monthly announcement to Discord (HTTP ${code})" ;;
+            *)  echo "::error title=discord::Discord webhook returned HTTP ${code}"; exit 1 ;;
+          esac
