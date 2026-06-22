@@ -5,6 +5,13 @@ Shared documentation for the [go-openapi](https://github.com/go-openapi) organiz
 This repository is the single source of truth for common project documentation:
 contributing guidelines, coding style, security policy, licensing, and code of conduct.
 
+## Announcements
+
+* **2026-06-22** : new community chat on discord
+  * a new discord community channel is available to be notified of changes and support users
+
+You may join the discord community via this [invite link](https://discord.gg/FfnFYaC3k5).
+
 ## Published site
 
 **https://go-openapi.github.io/doc-site/**
