@@ -62,7 +62,10 @@ discord_description: |-
 
 A single short paragraph framing the month: the overall shape of activity and the one
 or two things worth noticing. No grand strategy, no marketing language. State the
-**overall effort** inline (e.g. "N commits across M repositories").
+**overall effort** inline (e.g. "N commits across M repositories") — where **N is the
+load-bearing commit count**, i.e. excluding the automated bot authors (see *Finding the
+month's story* and *Data collection*). The lede must name whatever actually dominated
+the month's work, not whatever reads most excitingly.
 
 ### 2. Themes (compact list)
 
@@ -70,6 +73,7 @@ A short bulleted list of the month's cross-cutting themes — group similar chan
 across repos rather than listing per-repo. Typical buckets: features, bug fixes,
 dependency/CI maintenance, docs, releases. **Keep it to the few themes that actually
 mattered this month**; do not pad with boilerplate categories that saw no real change.
+The theme carrying the largest share of load-bearing work leads the list.
 
 ### 3. Repository highlights (short table)
 
@@ -103,6 +107,32 @@ Close with a short, warm thank-you to the **external human contributors** for th
   addresses. Do **not** count individual contributions.
 - If there were no external contributors this month, omit the section rather than
   writing an empty thank-you.
+
+## Finding the month's story (before you write)
+
+The failure mode this section exists to prevent: keyword-hunting for an attractive theme
+(a GHSA fix, a "security hardening" label) and making it the lede, while the activity that
+actually consumed the month gets filtered away as `chore:` noise. **Let the volume of
+load-bearing work decide the lede, then explain it.** A vivid handful of commits is not the
+headline just because it reads like one.
+
+1. **Rank repos by load-bearing commit share.** Using the bot-filtered counts (see Data
+   collection), compute each repo's share of the month's total commits.
+2. **The top one or two repos MUST be characterized** in the intro and themes. Any repo
+   holding **more than ~15–20%** of the month's load-bearing commits may **never** be
+   omitted or waved off as noise — *even if* its commits are `chore:`/`test:`-prefixed.
+3. **A dominant `chore:`/`test:` cluster is a signal to investigate, not filter.** Read the
+   actual subjects: they often carry `(#NNN)` / `(go-swagger#NNN)` issue references that
+   reveal the real story — a backlog sweep, a test-migration, an issue-triage pass. Do not
+   let the noise filter you use for the highlights table hide the month's biggest theme.
+4. **Connect the causal chain, and get the timing right.** A repo move, a major release, and
+   a wave of follow-on commits in *another* repo are usually one story, not three separate
+   bullets. Check when each cause actually happened — the cause may predate the window while
+   its consequence fills it (e.g. a repo extraction one month, the dependent cleanup the
+   next) — and state the sequence rather than mis-dating it.
+5. **Sanity check before writing.** Does your framing explain where the commits actually
+   went? If the themes describe 5% of the month and ignore the 60%, the framing is wrong —
+   redo it.
 
 ## Data collection (cloud environment)
 
@@ -154,6 +184,19 @@ clones** rather than the API. Work in a scratch dir, not the `doc-site` checkout
      A repo whose newest commit predates `--shallow-since` **fails to clone** — that just
      means zero activity in the window. Confirm dormancy if unsure with a
      `git clone --depth=1` and `git -C <dir> log -1 --pretty=%ci`.
+   - **Load-bearing commit count.** Every count you report or rank on — the intro's "N
+     commits" and the *Finding the month's story* ranking — must **exclude non-load-bearing
+     automated authors**, which inflate totals and never carry a theme:
+     `dependabot[bot]`, `bot-go-openapi[bot]` / `go-openapi-bot`, `github-actions[bot]`,
+     plus the automated `doc: updated contributors file` and `chore: prepare release …`
+     commits. Filter on author/email (and drop those two subjects):
+     ```bash
+     git -C <dir> log --since=<since> --until=<until> --pretty='%an%x09%ae%x09%s' \
+       | grep -vaiE 'dependabot|bot-go-openapi|go-openapi-bot|github-actions' \
+       | grep -vaiE 'updated contributors file|prepare release'
+     ```
+     Keep the raw count too if you like, but the **load-bearing** count is the one that
+     drives the narrative and the reported effort figure.
    - **Releases in the window** and **latest release tag** (for the highlights table) from
      tags — no Releases API needed:
      ```bash
@@ -165,7 +208,9 @@ clones** rather than the API. Work in a scratch dir, not the `doc-site` checkout
      ```
      Repos with no version tag (e.g. `doc-site`, `.github`) → leave the cell as "—".
    - **Merged-PR numbers** (optional, for richer highlights) are embedded in squashed commit
-     subjects as `(#NNN)` — extract them from the `%s` output rather than the search API.
+     subjects as `(#NNN)` / `(go-swagger#NNN)` — extract them from the `%s` output rather
+     than the search API. These refs are also the thread that reveals backlog sweeps and
+     issue-triage passes (see *Finding the month's story*).
 
 3. **Contributor handles without the API.** Git carries author *name + email*, not the
    GitHub login, so recover the handle from what git *does* have — never guess, never list
