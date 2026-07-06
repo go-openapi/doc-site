@@ -62,7 +62,10 @@ discord_description: |-
 
 A single short paragraph framing the month: the overall shape of activity and the one
 or two things worth noticing. No grand strategy, no marketing language. State the
-**overall effort** inline (e.g. "N commits across M repositories").
+**overall effort** inline (e.g. "N commits across M repositories") — where **N is the
+load-bearing commit count**, i.e. excluding the automated bot authors (see *Finding the
+month's story* and *Data collection*). The lede must name whatever actually dominated
+the month's work, not whatever reads most excitingly.
 
 ### 2. Themes (compact list)
 
@@ -70,6 +73,7 @@ A short bulleted list of the month's cross-cutting themes — group similar chan
 across repos rather than listing per-repo. Typical buckets: features, bug fixes,
 dependency/CI maintenance, docs, releases. **Keep it to the few themes that actually
 mattered this month**; do not pad with boilerplate categories that saw no real change.
+The theme carrying the largest share of load-bearing work leads the list.
 
 ### 3. Repository highlights (short table)
 
@@ -104,58 +108,122 @@ Close with a short, warm thank-you to the **external human contributors** for th
 - If there were no external contributors this month, omit the section rather than
   writing an empty thank-you.
 
+## Finding the month's story (before you write)
+
+The failure mode this section exists to prevent: keyword-hunting for an attractive theme
+(a GHSA fix, a "security hardening" label) and making it the lede, while the activity that
+actually consumed the month gets filtered away as `chore:` noise. **Let the volume of
+load-bearing work decide the lede, then explain it.** A vivid handful of commits is not the
+headline just because it reads like one.
+
+1. **Rank repos by load-bearing commit share.** Using the bot-filtered counts (see Data
+   collection), compute each repo's share of the month's total commits.
+2. **The top one or two repos MUST be characterized** in the intro and themes. Any repo
+   holding **more than ~15–20%** of the month's load-bearing commits may **never** be
+   omitted or waved off as noise — *even if* its commits are `chore:`/`test:`-prefixed.
+3. **A dominant `chore:`/`test:` cluster is a signal to investigate, not filter.** Read the
+   actual subjects: they often carry `(#NNN)` / `(go-swagger#NNN)` issue references that
+   reveal the real story — a backlog sweep, a test-migration, an issue-triage pass. Do not
+   let the noise filter you use for the highlights table hide the month's biggest theme.
+4. **Connect the causal chain, and get the timing right.** A repo move, a major release, and
+   a wave of follow-on commits in *another* repo are usually one story, not three separate
+   bullets. Check when each cause actually happened — the cause may predate the window while
+   its consequence fills it (e.g. a repo extraction one month, the dependent cleanup the
+   next) — and state the sequence rather than mis-dating it.
+5. **Sanity check before writing.** Does your framing explain where the commits actually
+   went? If the themes describe 5% of the month and ignore the 60%, the framing is wrong —
+   redo it.
+
 ## Data collection (cloud environment)
 
-The routine starts with **only `doc-site` checked out**, so prefer the **GitHub API**
-over cloning ~18 repos. **All reads must be authenticated** — unauthenticated GitHub
-API is 60 req/hour (far too low); authenticated is 5,000 req/hour. The `gh` CLI uses
-the `GH_TOKEN` env var automatically.
+The routine starts with **only `doc-site` checked out**. **Do not** try to use the
+GitHub REST API (`gh api`, `curl https://api.github.com/...`) or `gh repo list`: in the
+scheduled cloud sandbox the egress proxy binds the session to a single repository, so
+**every `api.github.com`, `github.com`, and `codeload.github.com` request returns HTTP
+403** — including *unauthenticated public reads* and the org-listing / GraphQL endpoints
+`gh repo list` depends on. A token does not help; the block is at the network layer.
 
-1. **Enumerate repositories** in both orgs (skip archived repos and forks):
+What the proxy **does** allow, and what this routine relies on:
+
+- the **git smart-HTTP protocol** — `git clone`, `git ls-remote`, `git fetch` — against
+  any public repo (and the `fredbi/doc-site` fork), and
+- **`raw.githubusercontent.com`** (single-file reads).
+
+Public repos need **no token** for git reads. So collect everything from **shallow git
+clones** rather than the API. Work in a scratch dir, not the `doc-site` checkout.
+
+1. **Enumerate repositories.** The org-listing API is blocked, so build the repo set from
+   readable sources and validate it with `git ls-remote` (skip archived repos and forks —
+   forks are absent from these orgs in practice; dormant repos fall out naturally in step 2):
+   - **Libraries** — union of `github.com/go-openapi/*` module paths found in a few
+     `go.mod` files (fetch via raw; go-swagger's `go.mod` pulls in most of them):
+     ```bash
+     for m in go-swagger/go-swagger go-openapi/runtime go-openapi/validate go-openapi/strfmt; do
+       curl -sS "https://raw.githubusercontent.com/$m/master/go.mod"
+     done | grep -oE 'go-openapi/[a-z0-9-]+' | sort -u
+     ```
+   - **Non-module repos** — add the known infra/tooling/example repos not referenced by any
+     `go.mod`: `go-openapi/{doc-site,ci-workflows,.github,codescan,kvstore,stubs,swaggersocket}`
+     and `go-swagger/{go-swagger,examples,scan-repo-boundary}`.
+   - **Validate** each candidate exists and is reachable (drop the misses):
+     ```bash
+     git ls-remote "https://github.com/<owner>/<repo>" HEAD >/dev/null 2>&1 && echo "<owner>/<repo>"
+     ```
+
+2. **Per repo, clone shallow over the window** (start a few days *before* `<since>` so the
+   first in-window commit is included; `--no-checkout --filter=blob:none` keeps it cheap —
+   we only need history, not trees):
    ```bash
-   gh repo list go-openapi --no-archived --source --limit 100 --json name,isArchived,isFork \
-     --jq '.[] | select(.isArchived|not) | select(.isFork|not) | .name'
-   gh repo list go-swagger  --no-archived --source --limit 100 --json name,isArchived,isFork \
-     --jq '.[] | select(.isArchived|not) | select(.isFork|not) | .name'
+   git clone -q --no-checkout --filter=blob:none --shallow-since=<since-minus-a-week> \
+     "https://github.com/<owner>/<repo>" "<dir>"
    ```
-
-2. **Per repo, over the window**, pull what you need via the API (replace `<owner>/<repo>`,
-   `<since>`, `<until>`):
-   - Commits on the default branch:
+   - **Commits in the window** (author name, email, subject):
      ```bash
-     gh api -X GET "repos/<owner>/<repo>/commits" \
-       -f since=<since> -f until=<until> --paginate \
-       --jq '.[] | {sha:.sha, msg:(.commit.message|split("\n")[0]), login:.author.login, name:.commit.author.name}'
+     git -C <dir> log --since=<since> --until=<until> --pretty='%an%x09%ae%x09%s'
      ```
-   - Releases published in the window:
+     A repo whose newest commit predates `--shallow-since` **fails to clone** — that just
+     means zero activity in the window. Confirm dormancy if unsure with a
+     `git clone --depth=1` and `git -C <dir> log -1 --pretty=%ci`.
+   - **Load-bearing commit count.** Every count you report or rank on — the intro's "N
+     commits" and the *Finding the month's story* ranking — must **exclude non-load-bearing
+     automated authors**, which inflate totals and never carry a theme:
+     `dependabot[bot]`, `bot-go-openapi[bot]` / `go-openapi-bot`, `github-actions[bot]`,
+     plus the automated `doc: updated contributors file` and `chore: prepare release …`
+     commits. Filter on author/email (and drop those two subjects):
      ```bash
-     gh api "repos/<owner>/<repo>/releases" --paginate \
-       --jq '.[] | {tag:.tag_name, published:.published_at}'
+     git -C <dir> log --since=<since> --until=<until> --pretty='%an%x09%ae%x09%s' \
+       | grep -vaiE 'dependabot|bot-go-openapi|go-openapi-bot|github-actions' \
+       | grep -vaiE 'updated contributors file|prepare release'
      ```
-   - Latest release tag (for the highlights table). **Do not** use `releases/latest` —
-     it returns HTTP 404 for repos with no published release and `gh` leaks the error
-     body to stdout. Ask for the newest release (or newest tag) instead, which yields an
-     empty array, not a 404:
+     Keep the raw count too if you like, but the **load-bearing** count is the one that
+     drives the narrative and the reported effort figure.
+   - **Releases in the window** and **latest release tag** (for the highlights table) from
+     tags — no Releases API needed:
      ```bash
-     tag=$(gh api "repos/<owner>/<repo>/releases?per_page=1" --jq '.[0].tag_name // empty' 2>/dev/null)
-     [ -z "$tag" ] && tag=$(gh api "repos/<owner>/<repo>/tags?per_page=1" --jq '.[0].name // empty' 2>/dev/null)
-     # repos with neither (e.g. codegen, doc-site) → leave the cell as "—"
+     # tags whose commit date lands in the window:
+     git -C <dir> for-each-ref --format='%(refname:short) %(creatordate:short)' refs/tags \
+       | awk '$2>="<yyyy-mm-01>" && $2<"<next-month-01>"'
+     # newest semver release tag (ignores per-submodule path tags):
+     git -C <dir> ls-remote --tags origin | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
      ```
-   - Merged PRs in the window (optional, for richer highlights):
-     ```bash
-     gh api -X GET "search/issues" \
-       -f q='repo:<owner>/<repo> is:pr is:merged merged:<since>..<until>' \
-       --jq '.items[] | {n:.number, title:.title, user:.user.login}'
-     ```
+     Repos with no version tag (e.g. `doc-site`, `.github`) → leave the cell as "—".
+   - **Merged-PR numbers** (optional, for richer highlights) are embedded in squashed commit
+     subjects as `(#NNN)` / `(go-swagger#NNN)` — extract them from the `%s` output rather
+     than the search API. These refs are also the thread that reveals backlog sweeps and
+     issue-triage passes (see *Finding the month's story*).
 
-3. **Shallow-clone only if needed** for file-level inspection of one repo:
-   `git clone --depth=50 --shallow-since=<since> https://github.com/<owner>/<repo>`.
+3. **Contributor handles without the API.** Git carries author *name + email*, not the
+   GitHub login, so recover the handle from what git *does* have — never guess, never list
+   an email:
+   - **GitHub noreply emails** encode the login: `NNN+<login>@users.noreply.github.com`
+     → `<login>`.
+   - **`Signed-off-by:` / `Co-authored-by:` trailers** in the full commit body
+     (`git log --pretty='%an%x09%s%x09%b'`) frequently carry the handle.
+   - If a contributor's handle can't be derived from either (author used a plain email and
+     no trailer names them), **omit them** from the thanks section rather than guessing or
+     printing a display name — and `log` the omission so the gap is visible.
 
-4. **Contributor handles** come straight from the commit API (`.author.login` above);
-   no SHA-to-login mapping needed. Skip null logins (web-flow / unmatched) rather than
-   guessing.
-
-5. **Cap and log truncation.** If any repo's history is too large to page fully within
+4. **Cap and log truncation.** If any repo's history is too large to page fully within
    reason, `log` what was capped rather than silently truncating — a report that hides
    gaps reads as complete when it is not.
 
@@ -172,6 +240,17 @@ to the user.
 ## After writing
 
 Write the file to `docs/doc-site/blog/monthly/<YYYY>-<MM>.md`. Do **not** post to
-Discord and do **not** commit from the skill — the routine handles the commit (via the
-GitHub Contents API) and the PR; the Discord announcement happens on merge via
-`announce-monthly.yml`.
+Discord and do **not** commit from the skill — the routine handles the commit and the PR;
+the Discord announcement happens on merge via `announce-monthly.yml`.
+
+**Publishing note (same sandbox constraint).** Because `api.github.com` is blocked, the
+routine's original `gh api .../contents/...` Contents-API path to the `fredbi/doc-site`
+fork does **not** work, and a plain `git push` from the sandbox produces an *unsigned*
+commit attributed to the proxy identity — which the contribution rules forbid. The
+working path is the **in-scope GitHub MCP server** (`go-openapi/doc-site` only), which
+reaches the Contents API server-side and yields a GitHub-Verified, token-owner-authored
+commit: create a `claude/monthly-<YM>` branch, `create_or_update_file` the report onto it
+(sign the message off as the maintainer), then open the PR on `go-openapi/doc-site` with
+`base=master head=claude/monthly-<YM>`. This is a same-repo branch PR, not a cross-fork
+one. Record any such deviation (branch-on-upstream vs fork, git-derived data vs API) in
+the PR body so reviewers know how the run was produced.
