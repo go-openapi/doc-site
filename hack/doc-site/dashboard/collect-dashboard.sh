@@ -35,7 +35,7 @@ EXCLUDES=(.github)
 # GitHub forks are dropped by default (the fork filter avoids surfacing random
 # personal forks). These forks are first-party projects we keep anyway — e.g.
 # testify is the maintained go-openapi testify/v2 fork. Repeatable via -i.
-FORK_INCLUDES=(testify)
+FORK_INCLUDES=(testify,go-yaml)
 
 # Workflow filenames behind the CI / cut-release / CodeQL badges. Most repos
 # follow the conventional names (defaults); a few diverge (overrides). A `null`
