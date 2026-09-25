@@ -1,0 +1,11 @@
+{{- /*
+  security/severity.html — severity badge. Receives the severity string
+  (critical, high, medium/moderate, low, or null / "unrated"). Returns HTML.
+*/ -}}
+{{- $sev := . | default "" | lower -}}
+{{- if eq $sev "moderate" }}{{ $sev = "medium" }}{{ end -}}
+{{- if in (slice "critical" "high" "medium" "low") $sev -}}
+<span class="sev sev-{{ $sev }}">{{ $sev }}</span>
+{{- else -}}
+<span class="sev sev-unrated" title="no severity score">unrated</span>
+{{- end -}}

@@ -2,5 +2,6 @@ public
 *.lock
 docs.yaml
 
-# Dashboard data is generated at build time (collect-dashboard job) and never committed.
+# Dashboard and security data are generated at build time (collect-dashboard job) and never committed.
 data/dashboard.json
+data/security.json

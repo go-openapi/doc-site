@@ -39,4 +39,41 @@ table.dashboard tr.dashboard-total > td {
   background: rgba(125, 125, 125, 0.25);
   font-weight: 700;
 }
+
+/* --- Security advisories page --- */
+table.security-detail td:nth-child(2),
+table.security-detail td:nth-child(5) {
+  /* Reporters and fixed versions are text, not figures. */
+  text-align: left;
+}
+table.security-detail tr.dashboard-group {
+  scroll-margin-top: 4rem;
+}
+/* The theme makes every row holding a <th> sticky (tr:has(th)): group and
+   total rows would pile up over the column headers. Only the header sticks. */
+table.security-summary tbody tr,
+table.security-detail tbody tr {
+  position: static;
+}
+/* Ids use a span, not <code>: the theme adds a copy button to every inline code. */
+.sec-id {
+  font-family: var(--CODE-font, monospace);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+.nowrap { white-space: nowrap; }
+.sev {
+  display: inline-block;
+  padding: 0 0.45em;
+  border-radius: 0.3em;
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #fff;
+}
+.sev-critical { background: #8b1a1a; }
+.sev-high     { background: #d1402f; }
+.sev-medium   { background: #d98a00; }
+.sev-low      { background: #6b8e23; }
+.sev-unrated  { background: rgba(125, 125, 125, 0.35); color: inherit; }
 </style>

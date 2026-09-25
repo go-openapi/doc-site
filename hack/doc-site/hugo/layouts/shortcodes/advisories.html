@@ -1,0 +1,259 @@
+{{- /*
+  advisories — renders the security advisories & alerts page from
+  site.Data.security (written by hack/doc-site/dashboard/collect-security.sh).
+
+  Two tables:
+    - Summary: one row per repo with anything to report, linking to its
+      section below, with per-org subtotals and a grand total (over all repos).
+    - Detailed report: one section per repo:
+        * advisories under analysis, one count per state (triage / draft)
+        * published advisories and fixed code scanning / Dependabot alerts
+          (one row per fix release), newest release first, advisories before
+          alerts within a release (order computed by the collector: .details)
+        * dismissed alerts counted by reason, open alerts counted by severity
+  Repos with nothing to report are listed in a closing sentence.
+
+  Alert ids link to their public reference (NVD, pkg.go.dev/vuln, GitHub
+  advisories, CodeQL query help): alert pages are only visible to maintainers.
+  When the data file is missing (collection failed, non-fatal), we degrade to a
+  notice rather than breaking the build.
+*/ -}}
+{{- $data := .Site.Data.security -}}
+{{- if or (not $data) (not $data.repos) -}}
+  {{- warnf "advisories: no data at site.Data.security — rendering 'unavailable' placeholder" -}}
+  <p>The security data is currently unavailable. It is refreshed daily; please check back later.</p>
+{{- else -}}
+{{- $shown := where $data.repos "empty" false -}}
+{{- $clean := where $data.repos "empty" true -}}
+
+<h2 id="summary">Summary</h2>
+
+<table class="dashboard security-summary">
+  <thead>
+    <tr>
+      <th>Repo</th>
+      <th>Published advisories</th>
+      <th>Under analysis</th>
+      <th>Fixed alerts</th>
+      <th>Fixed, not released</th>
+      <th>Dismissed alerts</th>
+      <th>Open alerts</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{- range $org := $data.orgs }}
+    {{- $rows := where $shown "org" $org }}
+    {{- if $rows }}
+    <tr class="dashboard-group"><th colspan="7">{{ $org }}</th></tr>
+    {{- range $repo := $rows }}
+    {{- $analysis := add (int $repo.advisoriesTriage) (int $repo.advisoriesDraft) }}
+    <tr>
+      <td><a href="#{{ printf "sec-%s-%s" $repo.org $repo.name | urlize }}">{{ $repo.name }}</a></td>
+      <td>{{ if $repo.advisoriesUnknown }}⚠️{{ else }}{{ len $repo.advisories }}{{ end }}</td>
+      {{- /* A leading ⚠️ flags what needs a maintainer's eye, as on the dashboard's Github tab.
+             The links lead to pages only maintainers can open. */}}
+      <td>
+        {{- if $repo.advisoriesUnknown -}}
+        <a href="{{ $repo.url }}/security/advisories" target="_blank" rel="noopener" title="could not read advisories — check manually">⚠️</a>
+        {{- else if gt $analysis 0 -}}
+        <a href="{{ $repo.url }}/security/advisories" target="_blank" rel="noopener" title="{{ $analysis }} {{ cond (eq $analysis 1) "advisory" "advisories" }} under analysis">⚠️ {{ $analysis }}</a>
+        {{- else }}&mdash;{{ end -}}
+      </td>
+      <td>{{ $repo.fixedAlerts }}</td>
+      <td>
+        {{- /* Only for repos that cut releases: a repo that never releases has nothing pending. */ -}}
+        {{- if and (gt (int $repo.fixedUnreleased) 0) $repo.hasReleases -}}
+        <span title="fixed on the default branch, not released yet">⚠️ {{ $repo.fixedUnreleased }}</span>
+        {{- else }}&mdash;{{ end -}}
+      </td>
+      <td>{{ if gt (int $repo.dismissedCount) 0 }}{{ $repo.dismissedCount }}{{ else }}&mdash;{{ end }}</td>
+      <td>
+        {{- if gt (int $repo.open) 0 -}}
+        {{- $href := printf "%s/security" $repo.url -}}
+        {{- if eq (int $repo.open) (int $repo.openCodeScanning) }}{{ $href = printf "%s/security/code-scanning?query=is%%3Aopen" $repo.url }}
+        {{- else if eq (int $repo.open) (int $repo.openDependabot) }}{{ $href = printf "%s/security/dependabot" $repo.url }}{{ end -}}
+        <a href="{{ $href }}" target="_blank" rel="noopener" title="{{ $repo.open }} open {{ cond (eq (int $repo.open) 1) "alert" "alerts" }}{{ with $repo.alertsUnknown }}; could not read: {{ delimit . ", " }}{{ end }}">⚠️ {{ $repo.open }}</a>
+        {{- else if $repo.alertsUnknown -}}
+        <a href="{{ $repo.url }}/security" target="_blank" rel="noopener" title="could not read: {{ delimit $repo.alertsUnknown ", " }} — check manually">⚠️</a>
+        {{- else }}0{{ end -}}
+      </td>
+    </tr>
+    {{- end }}
+    {{- partial "security/sumrow.html" (dict "label" (printf "%s total" $org) "class" "dashboard-subtotal" "sums" (partial "security/sums.html" (where $data.repos "org" $org))) }}
+    {{- end }}
+  {{- end }}
+  {{- partial "security/sumrow.html" (dict "label" "Grand total" "class" "dashboard-total" "sums" (partial "security/sums.html" $data.repos)) }}
+  </tbody>
+</table>
+
+<h2 id="detailed-report">Detailed report</h2>
+
+<table class="dashboard security-detail">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Reporter / source</th>
+      <th>Severity</th>
+      <th>Status</th>
+      <th>Fixed in</th>
+      <th>Date</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{- range $org := $data.orgs }}
+  {{- range $repo := where $shown "org" $org }}
+    <tr class="dashboard-group" id="{{ printf "sec-%s-%s" $repo.org $repo.name | urlize }}">
+      <th colspan="6"><a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.org }}/{{ $repo.name }}</a></th>
+    </tr>
+
+    {{- /* Advisories under analysis: counted per state, never detailed. */ -}}
+    {{- if $repo.advisoriesUnknown }}
+    <tr>
+      <td colspan="6">⚠️ Could not read the advisories of this repository.</td>
+    </tr>
+    {{- end }}
+    {{- range $state := slice "triage" "draft" }}
+    {{- $n := int (index $repo (cond (eq $state "triage") "advisoriesTriage" "advisoriesDraft")) }}
+    {{- if gt $n 0 }}
+    <tr>
+      <td>{{ $n }} {{ cond (eq $n 1) "advisory" "advisories" }} under analysis</td>
+      <td>&mdash;</td>
+      <td>&mdash;</td>
+      <td>{{ $state }}</td>
+      <td>&mdash;</td>
+      <td>&mdash;</td>
+    </tr>
+    {{- end }}
+    {{- end }}
+
+    {{- /* Published advisories and fixed alerts, newest release first. */ -}}
+    {{- range $item := $repo.details }}
+    {{- if eq $item.kind "advisory" }}
+    {{- $adv := $item }}
+    <tr>
+      <td><a href="{{ $adv.url }}" target="_blank" rel="noopener"><span class="sec-id">{{ $adv.ghsaId }}</span></a> {{ $adv.title }}</td>
+      <td>
+        {{- range $i, $r := $adv.reporters }}{{ if $i }}, {{ end }}<a href="https://github.com/{{ $r }}" target="_blank" rel="noopener">@{{ $r }}</a>{{ end -}}
+        {{- if not $adv.reporters }}&mdash;{{ end -}}
+      </td>
+      <td>{{ partial "security/severity.html" $adv.severity }}</td>
+      <td>published <span class="nowrap">{{ ($adv.publishedAt | time.AsTime).Format "2006-01-02" }}</span></td>
+      <td>
+        {{- range $i, $f := $adv.fixes }}{{ if $i }}<br>{{ end -}}
+          {{- if findRE `^[0-9a-f]{40}$` $f.patched -}}
+          commit <a href="{{ $repo.url }}/commit/{{ $f.patched }}" target="_blank" rel="noopener"><span class="sec-id">{{ substr $f.patched 0 7 }}</span></a>
+          {{- else -}}
+          {{- /* Name the module only when it is not the repo's root module:
+                 swag/jsonutils shows as "jsonutils", spec's validate fix as "go-openapi/validate". */ -}}
+          {{- $slug := printf "%s/%s" $repo.org $repo.name -}}
+          {{- $pkg := cond (eq $f.package $slug) "" (strings.TrimPrefix (printf "%s/" $slug) $f.package) -}}
+          {{ with $pkg }}<span class="sec-id">{{ . }}</span> {{ end }}
+          {{- if and $f.releaseRepo $f.releaseTag -}}
+          <a class="nowrap" href="https://github.com/{{ $f.releaseRepo }}/releases/tag/{{ $f.releaseTag }}" target="_blank" rel="noopener">{{ $f.releaseTag }}</a>
+          {{- else -}}
+          <span class="nowrap">{{ $f.patched }}</span>
+          {{- end -}}
+          {{- end -}}
+        {{- end -}}
+      </td>
+      <td>{{ with $adv.releasedAt }}<span class="nowrap">{{ (. | time.AsTime).Format "2006-01-02" }}</span>{{ else }}&mdash;{{ end }}</td>
+    </tr>
+    {{- else }}
+    {{- $grp := $item }}
+    <tr>
+      <td>
+        {{ $grp.count }} fixed {{ cond (eq (int $grp.count) 1) "alert" "alerts" }}:
+        {{ range $i, $v := $grp.vulns }}{{ if $i }}, {{ end -}}
+          {{- if $v.link -}}
+          <a href="{{ $v.link }}" target="_blank" rel="noopener" title="{{ $v.title }}"><span class="sec-id">{{ $v.id }}</span></a>
+          {{- else -}}
+          <span class="sec-id" title="{{ $v.title }}">{{ $v.id }}</span>
+          {{- end -}}
+          {{- if gt (int $v.count) 1 }}&nbsp;&times;{{ $v.count }}{{ end -}}
+        {{- end }}
+      </td>
+      <td>{{ delimit $grp.tools ", " }}</td>
+      <td>{{ partial "security/severity.html" $grp.maxSeverity }}</td>
+      <td>fixed</td>
+      <td>
+        {{- if $grp.release -}}
+        {{ if $grp.inferred }}<span title="inferred: first release published after the fix date">≈ </span>{{ end -}}
+        <a href="{{ $repo.url }}/releases/tag/{{ $grp.release }}" target="_blank" rel="noopener">{{ $grp.release }}</a>
+        {{- else if $repo.hasReleases -}}
+        <em>not released yet</em>
+        {{- else -}}
+        <em>no releases</em>
+        {{- end -}}
+      </td>
+      <td>
+        {{- /* Date of the fix release, else the date the alert was fixed (not released yet). */ -}}
+        {{- with $grp.releasedAt -}}
+        <span class="nowrap">{{ (. | time.AsTime).Format "2006-01-02" }}</span>
+        {{- else -}}
+        <em class="nowrap" title="date the alert was fixed; no release yet">fixed {{ ($grp.lastFixedAt | time.AsTime).Format "2006-01-02" }}</em>
+        {{- end -}}
+      </td>
+    </tr>
+    {{- end }}
+    {{- end }}
+
+    {{- /* Dismissed alerts, counted by reason. */ -}}
+    {{- if gt (int $repo.dismissedCount) 0 }}
+    <tr>
+      <td>{{ $repo.dismissedCount }} dismissed {{ cond (eq (int $repo.dismissedCount) 1) "alert" "alerts" }}</td>
+      <td>&mdash;</td>
+      <td>&mdash;</td>
+      <td>
+        {{- range $i, $d := $repo.dismissed }}{{ if $i }}, {{ end }}{{ $d.reason }}: {{ $d.count }}{{ end -}}
+      </td>
+      <td>&mdash;</td>
+      <td>&mdash;</td>
+    </tr>
+    {{- end }}
+
+    {{- /* Open alerts: counted by severity only, never disclosed. */ -}}
+    {{- if gt (int $repo.open) 0 }}
+    <tr>
+      <td>
+        {{ $repo.open }} open {{ cond (eq (int $repo.open) 1) "alert" "alerts" }}:
+        {{- $links := slice -}}
+        {{- with $repo.openCodeScanning }}{{ $links = $links | append (printf `<a href="%s/security/code-scanning?query=is%%3Aopen" target="_blank" rel="noopener">%d code scanning</a>` $repo.url (int .)) }}{{ end -}}
+        {{- with $repo.openDependabot }}{{ $links = $links | append (printf `<a href="%s/security/dependabot" target="_blank" rel="noopener">%d Dependabot</a>` $repo.url (int .)) }}{{ end }}
+        {{ delimit $links ", " | safeHTML }}
+      </td>
+      <td>&mdash;</td>
+      <td>
+        {{- range $i, $o := $repo.openBySeverity }}{{ if $i }} {{ end }}{{ partial "security/severity.html" $o.severity }}&nbsp;{{ $o.count }}{{ end -}}
+      </td>
+      <td>open</td>
+      <td>&mdash;</td>
+      <td>&mdash;</td>
+    </tr>
+    {{- end }}
+
+    {{- with $repo.alertsUnknown }}
+    <tr>
+      <td colspan="6">⚠️ Could not read: {{ delimit . ", " }} alerts.</td>
+    </tr>
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  </tbody>
+</table>
+
+<p><em>Fixed in</em>: code scanning alerts show the first release whose tag contains the
+commit that fixed the alert. <span title="inferred">≈</span> marks a release inferred from dates
+instead: the first release published after the alert was fixed. This applies to Dependabot
+alerts, which record no commit, and to code scanning alerts whose fixing commit is unknown or
+no longer on the default branch (rewritten history).</p>
+
+{{- if $clean }}
+<p>No advisories or alerts on:
+{{ range $i, $repo := $clean }}{{ if $i }}, {{ end }}<a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.org }}/{{ $repo.name }}</a>{{ end }}.</p>
+{{- end }}
+
+<p class="dashboard-updated"><em>
+  Alerts from all code scanning tools but {{ delimit $data.excludedTools ", " }}, plus Dependabot.
+  Last updated: {{ ($data.generatedAt | time.AsTime).Format "2006-01-02 15:04 MST" }}
+</em></p>
+{{- end -}}

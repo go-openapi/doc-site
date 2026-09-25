@@ -93,11 +93,45 @@ jobs:
         run: |
           bash hack/doc-site/dashboard/collect-dashboard.sh -o dashboard.json
       -
+        # The previous security.json is the collector's cache of fix releases
+        # (resolved once, immutable after): with it, a daily run only looks up
+        # newly fixed alerts (seconds) instead of all of them (~10 minutes).
+        # A fresh key per run plus a prefix restore-key restores the latest save.
+        name: Restore security data cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: security.json
+          key: security-data-${{ github.run_id }}
+          restore-keys: |
+            security-data-
+      -
+        # Same tokens as the dashboard. Non-fatal on its own: a failure here only
+        # degrades the security page to "data unavailable".
+        name: Collect security data
+        id: collect-security
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.DASHBOARD_READ_TOKEN || github.token }}
+          SECURITY_TOKEN_GO_OPENAPI: ${{ steps.token-go-openapi.outputs.app-token }}
+          SECURITY_TOKEN_GO_SWAGGER: ${{ steps.token-go-swagger.outputs.app-token }}
+        run: |
+          bash hack/doc-site/dashboard/collect-security.sh -o security.json
+      -
+        # Pull request runs read the default branch cache but do not write one.
+        name: Save security data cache
+        if: ${{ steps.collect-security.outcome == 'success' && github.event_name != 'pull_request' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: security.json
+          key: security-data-${{ github.run_id }}
+      -
         name: Upload dashboard data
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dashboard-data
-          path: dashboard.json
+          path: |
+            dashboard.json
+            security.json
           retention-days: 1
           if-no-files-found: warn
 
