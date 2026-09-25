@@ -1,0 +1,14 @@
+{{- /*
+  security/sumrow.html — a totals row of the summary table.
+  Receives dict "label" "class" "sums" (from security/sums.html). Returns HTML.
+*/ -}}
+{{- $s := .sums -}}
+<tr class="{{ .class }}">
+  <th>{{ .label }}</th>
+  <td>{{ $s.advisories }}</td>
+  <td>{{ $s.analysis }}</td>
+  <td>{{ $s.fixed }}</td>
+  <td>{{ $s.unreleased }}</td>
+  <td>{{ $s.dismissed }}</td>
+  <td>{{ $s.open }}</td>
+</tr>

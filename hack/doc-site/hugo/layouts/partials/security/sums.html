@@ -1,0 +1,17 @@
+{{- /*
+  security/sums.html — totals over a list of repos from site.Data.security.
+  Returns a dict with the summary table counts. "unreleased" only counts repos
+  that cut releases: a repo without releases has nothing to release a fix in.
+*/ -}}
+{{- $t := dict "advisories" 0 "analysis" 0 "fixed" 0 "unreleased" 0 "dismissed" 0 "open" 0 -}}
+{{- range . -}}
+  {{- $t = merge $t (dict
+      "advisories" (add $t.advisories (len .advisories))
+      "analysis"   (add $t.analysis (int .advisoriesTriage) (int .advisoriesDraft))
+      "fixed"      (add $t.fixed (int .fixedAlerts))
+      "unreleased" (add $t.unreleased (cond .hasReleases (int .fixedUnreleased) 0))
+      "dismissed"  (add $t.dismissed (int .dismissedCount))
+      "open"       (add $t.open (int .open))
+  ) -}}
+{{- end -}}
+{{- return $t -}}
