@@ -65,7 +65,7 @@ jobs:
         name: go-openapi App token
         id: token-go-openapi
         continue-on-error: true
-        uses: go-openapi/gh-actions/ci-jobs/bot-credentials@c0f86e95429fd84e4c96786d630422e9221f556a # v1.4.19
+        uses: go-openapi/gh-actions/ci-jobs/bot-credentials@2a20802fd4ec9b9fd4732b832c91fec9c4aae777 # v1.4.20
         with:
           enable-github-app: 'true'
           github-app-id: ${{ secrets.CI_BOT_APP_ID }}
@@ -75,7 +75,7 @@ jobs:
         name: go-swagger App token
         id: token-go-swagger
         continue-on-error: true
-        uses: go-openapi/gh-actions/ci-jobs/bot-credentials@c0f86e95429fd84e4c96786d630422e9221f556a # v1.4.19
+        uses: go-openapi/gh-actions/ci-jobs/bot-credentials@2a20802fd4ec9b9fd4732b832c91fec9c4aae777 # v1.4.20
         with:
           enable-github-app: 'true'
           github-app-id: ${{ secrets.CI_BOT_APP_ID }}
