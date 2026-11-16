@@ -45,7 +45,6 @@ WF_OVERRIDES='{
   "ci-workflows":         {"ci":"local-go-test.yml","release":"local-bump-release.yml","codeql":"local-codeql.yml"},
   "gh-actions":           {"ci":"test.yml"},
   "doc-site":             {"ci":"update-doc.yml","release":null},
-  "go-swagger":           {"ci":"test.yaml"},
   "dockerctl":            {"ci":null,"release":null},
   "homebrew-go-swagger":  {"ci":null,"release":null},
   "scan-repo-boundary":   {"ci":null,"release":null},
