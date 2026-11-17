@@ -26,7 +26,6 @@
     </tr>
     <tr>
       <th>CodeFactor</th>
-      <th>GoReportCard</th>
     </tr>
   </thead>
   <tbody>
@@ -43,7 +42,6 @@
       <td><a href="{{ $repo.url }}" target="_blank" rel="noopener">{{ $repo.name }}</a></td>
       <td><a href="https://app.codecov.io/gh/{{ $slug }}" target="_blank" rel="noopener"><img src="https://codecov.io/gh/{{ $slug }}/branch/{{ $branch }}/graph/badge.svg" alt="Coverage"></a></td>
       <td><a href="https://www.codefactor.io/repository/github/{{ $slug }}" target="_blank" rel="noopener"><img src="https://www.codefactor.io/repository/github/{{ $slug }}/badge" alt="CodeFactor"></a></td>
-      <td><a href="https://goreportcard.com/report/github.com/{{ $slug }}" target="_blank" rel="noopener"><img src="https://goreportcard.com/badge/github.com/{{ $slug }}" alt="Go Report Card"></a></td>
       <td>
         {{- if $codeql -}}
         <a href="{{ $repo.url }}/actions/workflows/{{ $codeql }}" target="_blank" rel="noopener"><img src="{{ $repo.url }}/actions/workflows/{{ $codeql }}/badge.svg" alt="CodeQL"></a>
